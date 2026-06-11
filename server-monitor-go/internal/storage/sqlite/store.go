@@ -1,17 +1,21 @@
-// Package store is the persistence layer: a thin, well-typed wrapper around
-// SQLite that owns the schema and all queries. Server identity is keyed by
-// name (the value an admin registers and the agent reports under); the public
-// id is a stable md5(name) so the frontend can address rows.
-package store
+// Package sqlite is the concrete persistence layer: a thin, well-typed wrapper
+// around SQLite (modernc.org/sqlite, pure Go, no cgo) that owns the schema and
+// all queries. It returns domain types and satisfies the repository interfaces
+// the service layer defines. Server identity is keyed by name (the value an
+// admin registers and the agent reports under); the public id is a stable
+// md5(name) so the frontend can address rows.
+//
+// Operations such as AddClient and DeleteServer span the servers and
+// allowed_clients tables transactionally, so they live on a single Store rather
+// than being split across per-table repositories.
+package sqlite
 
 import (
-	"crypto/md5"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"time"
 
-	"github.com/thomasstefen/server-monitor/internal/models"
+	"github.com/thomasstefen/server-monitor/internal/domain"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (no cgo), keeps a static binary
 )
@@ -26,7 +30,8 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open connects to the SQLite database at path and initializes the schema.
+// Open connects to the SQLite database at path, runs versioned migrations, and
+// resets any stale "running" rows left over from a previous process.
 func Open(path string) (*Store, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -36,8 +41,13 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 
 	s := &Store{db: db}
-	if err := s.init(); err != nil {
+	if err := s.migrate(); err != nil {
 		return nil, err
+	}
+	// On startup any previously "running" server is unknown until its agent
+	// reports again, so reset to stopped.
+	if _, err := db.Exec(`UPDATE servers SET status = 'stopped' WHERE status = 'running'`); err != nil {
+		return nil, fmt.Errorf("startup reset: %w", err)
 	}
 	return s, nil
 }
@@ -45,100 +55,9 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-// ServerID derives the stable public id for a client name.
-func ServerID(name string) string {
-	sum := md5.Sum([]byte(name))
-	return hex.EncodeToString(sum[:])
-}
-
-func (s *Store) init() error {
-	stmts := []string{
-		`CREATE TABLE IF NOT EXISTS servers (
-			id TEXT PRIMARY KEY,
-			name TEXT UNIQUE,
-			type TEXT,
-			location TEXT,
-			ip_address TEXT,
-			hostname TEXT DEFAULT '',
-			tailscale_ip TEXT DEFAULT '',
-			status TEXT DEFAULT 'stopped',
-			uptime INTEGER,
-			network_in REAL,
-			network_out REAL,
-			cpu REAL,
-			memory REAL,
-			disk REAL,
-			os_type TEXT,
-			cpu_info TEXT,
-			total_memory REAL,
-			total_disk REAL,
-			order_index INTEGER DEFAULT 0,
-			first_seen TEXT DEFAULT (datetime('now')),
-			last_update TEXT DEFAULT (datetime('now'))
-		)`,
-		`CREATE TABLE IF NOT EXISTS allowed_clients (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT UNIQUE NOT NULL,
-			created_at TEXT DEFAULT (datetime('now'))
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_client_name ON allowed_clients(name)`,
-		`CREATE TABLE IF NOT EXISTS admin_auth (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			password_hash BLOB NOT NULL,
-			is_initialized INTEGER DEFAULT 0
-		)`,
-		// On startup any previously "running" server is unknown until its
-		// agent reports again, so reset to stopped.
-		`UPDATE servers SET status = 'stopped' WHERE status = 'running'`,
-	}
-	for _, stmt := range stmts {
-		if _, err := s.db.Exec(stmt); err != nil {
-			return fmt.Errorf("init schema: %w", err)
-		}
-	}
-	return s.migrate()
-}
-
-// migrate brings an existing database up to the current schema by adding any
-// columns introduced after it was first created. ADD COLUMN is idempotent here
-// because we only add columns absent from the live table.
-func (s *Store) migrate() error {
-	existing, err := s.columns("servers")
-	if err != nil {
-		return err
-	}
-	adds := map[string]string{
-		"hostname":     `ALTER TABLE servers ADD COLUMN hostname TEXT DEFAULT ''`,
-		"tailscale_ip": `ALTER TABLE servers ADD COLUMN tailscale_ip TEXT DEFAULT ''`,
-	}
-	for col, ddl := range adds {
-		if _, ok := existing[col]; ok {
-			continue
-		}
-		if _, err := s.db.Exec(ddl); err != nil {
-			return fmt.Errorf("migrate add %s: %w", col, err)
-		}
-	}
-	return nil
-}
-
-// columns returns the set of column names for a table.
-func (s *Store) columns(table string) (map[string]struct{}, error) {
-	rows, err := s.db.Query(`SELECT name FROM pragma_table_info(?)`, table)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	cols := make(map[string]struct{})
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		cols[name] = struct{}{}
-	}
-	return cols, rows.Err()
-}
+// ServerID derives the stable public id for a client name. It delegates to
+// domain.ServerID so the id rule lives in one place.
+func ServerID(name string) string { return domain.ServerID(name) }
 
 // serverColumns is the canonical projection used by list/get queries.
 const serverColumns = `id, name, type, location, ip_address, hostname,
@@ -146,8 +65,8 @@ const serverColumns = `id, name, type, location, ip_address, hostname,
 	os_type, cpu_info, total_memory, total_disk, order_index, first_seen,
 	last_update`
 
-func scanServer(row interface{ Scan(...any) error }) (models.Server, error) {
-	var sv models.Server
+func scanServer(row interface{ Scan(...any) error }) (domain.Server, error) {
+	var sv domain.Server
 	err := row.Scan(
 		&sv.ID, &sv.Name, &sv.Type, &sv.Location, &sv.IPAddress, &sv.Hostname,
 		&sv.TailscaleIP, &sv.Status, &sv.Uptime, &sv.NetworkIn, &sv.NetworkOut,
@@ -159,7 +78,7 @@ func scanServer(row interface{ Scan(...any) error }) (models.Server, error) {
 
 // ListServers returns every server ordered for display (highest order_index
 // first, then oldest first as a stable tiebreaker).
-func (s *Store) ListServers() ([]models.Server, error) {
+func (s *Store) ListServers() ([]domain.Server, error) {
 	rows, err := s.db.Query(`SELECT ` + serverColumns + ` FROM servers
 		ORDER BY order_index DESC, first_seen ASC`)
 	if err != nil {
@@ -167,7 +86,7 @@ func (s *Store) ListServers() ([]models.Server, error) {
 	}
 	defer rows.Close()
 
-	servers := make([]models.Server, 0)
+	servers := make([]domain.Server, 0)
 	for rows.Next() {
 		sv, err := scanServer(rows)
 		if err != nil {
@@ -179,14 +98,14 @@ func (s *Store) ListServers() ([]models.Server, error) {
 }
 
 // GetServer fetches a single server by its public id.
-func (s *Store) GetServer(id string) (models.Server, bool, error) {
+func (s *Store) GetServer(id string) (domain.Server, bool, error) {
 	row := s.db.QueryRow(`SELECT `+serverColumns+` FROM servers WHERE id = ?`, id)
 	sv, err := scanServer(row)
 	if err == sql.ErrNoRows {
-		return models.Server{}, false, nil
+		return domain.Server{}, false, nil
 	}
 	if err != nil {
-		return models.Server{}, false, err
+		return domain.Server{}, false, err
 	}
 	return sv, true, nil
 }
@@ -205,8 +124,8 @@ func (s *Store) IsClientAllowed(name string) (bool, error) {
 // name) and marks it running. Rows are only updated, never inserted here: a
 // server must first be registered via AddClient. Returns false if no allowed
 // row matched. The status transition (if any) is returned for logging.
-func (s *Store) UpdateMetrics(in models.Server) (changed bool, oldStatus string, err error) {
-	var prev string
+func (s *Store) UpdateMetrics(in domain.Server) (changed bool, oldStatus domain.Status, err error) {
+	var prev domain.Status
 	err = s.db.QueryRow(`SELECT status FROM servers WHERE name = ?`, in.Name).Scan(&prev)
 	if err == sql.ErrNoRows {
 		return false, "", nil
@@ -245,7 +164,7 @@ func (s *Store) Heartbeat(id string) error {
 }
 
 // SetStatus forces a server's status by id.
-func (s *Store) SetStatus(id, status string) error {
+func (s *Store) SetStatus(id string, status domain.Status) error {
 	now := time.Now().UTC().Format(timeLayout)
 	_, err := s.db.Exec(`UPDATE servers SET status = ?, last_update = ? WHERE id = ?`,
 		status, now, id)
@@ -294,16 +213,16 @@ func (s *Store) ClientExists(name string) (bool, error) {
 }
 
 // ListClients returns the allow-list entries.
-func (s *Store) ListClients() ([]models.Client, error) {
+func (s *Store) ListClients() ([]domain.Client, error) {
 	rows, err := s.db.Query(`SELECT name, created_at FROM allowed_clients ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	clients := make([]models.Client, 0)
+	clients := make([]domain.Client, 0)
 	for rows.Next() {
-		var c models.Client
+		var c domain.Client
 		if err := rows.Scan(&c.Name, &c.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -371,6 +290,41 @@ func (s *Store) MarkStaleStopped(staleAfter time.Duration) ([]string, error) {
 		changed = append(changed, v.name)
 	}
 	return changed, nil
+}
+
+// --- unknown agents (ingest observability) ---
+
+// RecordUnknownAgent upserts a rejected ingest: it increments the seen count
+// and refreshes the remote address and last-seen time for that name.
+func (s *Store) RecordUnknownAgent(name, remoteAddr string, when time.Time) error {
+	ts := when.UTC().Format(timeLayout)
+	_, err := s.db.Exec(`INSERT INTO unknown_agents (name, remote_addr, last_seen, count)
+		VALUES (?, ?, ?, 1)
+		ON CONFLICT(name) DO UPDATE SET
+			remote_addr = excluded.remote_addr,
+			last_seen = excluded.last_seen,
+			count = count + 1`,
+		name, remoteAddr, ts)
+	return err
+}
+
+// ListUnknownAgents returns rejected-ingest entries, most recently seen first.
+func (s *Store) ListUnknownAgents() ([]domain.UnknownAgent, error) {
+	rows, err := s.db.Query(`SELECT name, remote_addr, last_seen, count
+		FROM unknown_agents ORDER BY last_seen DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.UnknownAgent, 0)
+	for rows.Next() {
+		var u domain.UnknownAgent
+		if err := rows.Scan(&u.Name, &u.RemoteAddr, &u.LastSeen, &u.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
 }
 
 // --- admin auth ---

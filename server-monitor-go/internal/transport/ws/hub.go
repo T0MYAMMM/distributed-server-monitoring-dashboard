@@ -1,8 +1,8 @@
-// Package hub implements a WebSocket fan-out for dashboard clients. Whenever a
-// server's metrics or status change, the API layer calls Broadcast with a
-// fresh snapshot and every connected dashboard receives it immediately,
-// giving real-time updates without polling.
-package hub
+// Package ws implements a WebSocket fan-out for dashboard clients. Whenever a
+// server's metrics or status change, the transport layer calls Broadcast with a
+// fresh snapshot and every connected dashboard receives it immediately, giving
+// real-time updates without polling.
+package ws
 
 import (
 	"sync"
@@ -75,8 +75,8 @@ func (h *Hub) Broadcast(msg []byte) {
 		select {
 		case c.send <- msg:
 		default:
-			// Buffer full: drop this client's pending update; it will catch
-			// up on the next broadcast or reconnect.
+			// Buffer full: drop this client's pending update; it will catch up
+			// on the next broadcast or reconnect.
 		}
 	}
 }
@@ -86,4 +86,18 @@ func (h *Hub) Count() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
+}
+
+// CloseAll closes every connected socket, unblocking their Add reader loops.
+// Used to drain the hub during graceful shutdown.
+func (h *Hub) CloseAll() {
+	h.mu.RLock()
+	conns := make([]*websocket.Conn, 0, len(h.clients))
+	for c := range h.clients {
+		conns = append(conns, c.conn)
+	}
+	h.mu.RUnlock()
+	for _, conn := range conns {
+		conn.Close()
+	}
 }
