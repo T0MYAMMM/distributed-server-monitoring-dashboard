@@ -286,6 +286,21 @@ lands as its own commit that intentionally flips that one assertion.
   shape (characterization-locked); the new envelope applies only to `/api/v1`.
   Confirm acceptable.
 
+  **Phase 1 status:** to stay strictly behavior-preserving, the error mapper
+  currently renders the flat shape on *both* surfaces. The nested v1 envelope is
+  deferred to land alongside the v1-consuming frontend (Phase 4), so no consumer
+  sees a shape change mid-flight. (The v1 RequireAuth 401 already uses the nested
+  shape, since that path has no legacy consumer.)
+
+Deferred deliberate behavior changes (tracked, not yet applied):
+- **D5 tailscale masking** — `internal/masking` masks only `ip_address` today
+  (behavior-preserving). Flipping it to also mask `tailscale_ip` for anonymous
+  viewers is a one-edit change in that package + its characterization assertion,
+  to be committed as a labeled change.
+- **WS auth state** — dashboard sockets are still always-masked (no behavior
+  change). Per-connection auth-aware masking (admin WS sees real IPs live) lands
+  with the auth-aware WS handshake in a later phase.
+
 - **D5 — Tailscale IP masking conflict (Section 2 #3 vs as-built).** The brief's
   hard constraint says anonymous viewers must never see **public IPs or
   Tailscale IPs**, and also says keep masking semantics "exactly." As-built,
@@ -305,8 +320,8 @@ lands as its own commit that intentionally flips that one assertion.
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Audit + characterization tests | DONE: inventory written; 3 test files green under `go vet` + `go test -race` (`internal/api`, `internal/store`, `internal/models`). Awaiting go-ahead for Phase 1. |
-| 1 | Backend restructure (no behavior change) | not started |
-| 2 | Backend features (B1 metrics, B2 observability, B3 alerts, B4 v1) | not started |
+| 1 | Backend restructure (no behavior change) | DONE: domain / storage(sqlite+versioned migrations) / service(servers,auth) / transport(http,ws,middleware) / masking / config(slog, graceful drain, STALE_AFTER_SECONDS). /api/v1 aliases live; legacy preserved. Verified: race tests, build.sh targets, runtime smoke, real servers.db upgraded in place. |
+| 2 | Backend features (B1 metrics, B2 observability, B3 alerts, B4 v1) | not started. B4 partially in place (v1 aliases + v1 auth gate); B2 partially in place (rejected-ingest logging). |
 | 3 | Frontend foundation (shell, tokens, client, WS, Query) | not started |
 | 4 | Page rebuilds (Dashboard, Servers, Alerts, Admin) | not started |
 | 5 | Hardening & docs | not started |
