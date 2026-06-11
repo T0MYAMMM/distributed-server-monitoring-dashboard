@@ -36,6 +36,14 @@ type Repo interface {
 // Clock abstracts time so the sweep loop is testable without real delays.
 type Clock interface{ Now() time.Time }
 
+// AlertSink receives lifecycle events worth alerting on. It is implemented by
+// the alerts service and injected at wiring time; the servers service depends
+// only on this interface, not on the alerts package.
+type AlertSink interface {
+	StatusChanged(serverID, serverName string, from, to domain.Status)
+	Reported(serverID, serverName string, disk float64)
+}
+
 // SystemClock is the production Clock.
 type SystemClock struct{}
 
@@ -47,6 +55,7 @@ type Service struct {
 	repo  Repo
 	clock Clock
 	log   *slog.Logger
+	sink  AlertSink
 }
 
 // New constructs a Service. clock and log may be nil for sensible defaults.
@@ -59,6 +68,10 @@ func New(repo Repo, clock Clock, log *slog.Logger) *Service {
 	}
 	return &Service{repo: repo, clock: clock, log: log}
 }
+
+// SetAlertSink injects the alert sink at wiring time (optional). When unset, no
+// alerts are emitted and behavior is unchanged.
+func (s *Service) SetAlertSink(sink AlertSink) { s.sink = sink }
 
 // List returns all servers in display order.
 func (s *Service) List() ([]domain.Server, error) { return s.repo.ListServers() }
@@ -98,6 +111,13 @@ func (s *Service) Ingest(in domain.Server) error {
 	}
 	if old != domain.StatusRunning {
 		s.log.Info("server status transition", "name", in.Name, "from", old, "to", domain.StatusRunning)
+	}
+	if s.sink != nil {
+		id := domain.ServerID(in.Name)
+		if old == domain.StatusStopped {
+			s.sink.StatusChanged(id, in.Name, domain.StatusStopped, domain.StatusRunning)
+		}
+		s.sink.Reported(id, in.Name, in.Disk)
 	}
 	return nil
 }
@@ -171,6 +191,9 @@ func (s *Service) SweepStale(staleAfter time.Duration) ([]string, error) {
 	}
 	for _, name := range changed {
 		s.log.Info("server status transition", "name", name, "from", domain.StatusRunning, "to", domain.StatusStopped, "reason", "stale")
+		if s.sink != nil {
+			s.sink.StatusChanged(domain.ServerID(name), name, domain.StatusRunning, domain.StatusStopped)
+		}
 	}
 	return changed, nil
 }

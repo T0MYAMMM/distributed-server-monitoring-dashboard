@@ -94,6 +94,23 @@ var migrations = []migration{
 			)`,
 		},
 	},
+	{
+		version: 5,
+		name:    "alerts",
+		stmts: []string{
+			`CREATE TABLE alerts (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				type TEXT NOT NULL,
+				server_id TEXT DEFAULT '',
+				server_name TEXT DEFAULT '',
+				severity TEXT DEFAULT 'info',
+				message TEXT DEFAULT '',
+				created_at TEXT DEFAULT (datetime('now')),
+				acknowledged_at TEXT DEFAULT ''
+			)`,
+			`CREATE INDEX idx_alerts_created ON alerts(created_at)`,
+		},
+	},
 }
 
 // legacyBaselineVersion is the schema version produced by the pre-versioning

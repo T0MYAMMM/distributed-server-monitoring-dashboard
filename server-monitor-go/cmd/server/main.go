@@ -18,6 +18,7 @@ import (
 
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/config"
+	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
@@ -50,7 +51,17 @@ func main() {
 	serversService := servers.New(db, servers.SystemClock{}, logger)
 	metricsService := metricssvc.New(db, metricssvc.SystemClock{}, logger)
 	hub := ws.New()
-	handlers := httpapi.New(serversService, authService, metricsService, hub, cfg.AgentsDir, logger)
+
+	// Alerts: a webhook notifier (disabled when ALERT_WEBHOOK_URL is empty) and
+	// a sink wired into the servers service so transitions and threshold
+	// breaches emit alerts. onEmit refreshes dashboards via the WS snapshot.
+	notifier := alertssvc.NewNotifier(cfg.AlertWebhookURL, logger)
+	var handlers *httpapi.Handlers
+	alertsService := alertssvc.New(db, notifier, alertssvc.SystemClock{}, cfg.AlertDiskThreshold,
+		func() { handlers.Broadcast() }, logger)
+	serversService.SetAlertSink(alertsService)
+
+	handlers = httpapi.New(serversService, authService, metricsService, alertsService, hub, cfg.AgentsDir, logger)
 
 	// Background jobs; cancelled on shutdown.
 	ctx, cancel := context.WithCancel(context.Background())
