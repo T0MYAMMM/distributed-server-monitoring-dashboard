@@ -1,7 +1,8 @@
-// Characterization tests (Phase 0) for the persistence layer: the status
-// lifecycle and the staleness sweep. They pin current behavior so the Phase 1
-// move (including the planned Clock injection) stays behavior-preserving.
-package store
+// Characterization tests (Phase 0, relocated to the sqlite package in Phase 1)
+// for the persistence layer: the status lifecycle and the staleness sweep. They
+// pin current behavior so the move (including the planned Clock injection) stays
+// behavior-preserving.
+package sqlite
 
 import (
 	"path/filepath"

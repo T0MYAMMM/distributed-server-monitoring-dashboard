@@ -22,16 +22,16 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	"github.com/thomasstefen/server-monitor/internal/hub"
-	"github.com/thomasstefen/server-monitor/internal/store"
+	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 )
 
 const testSecret = "characterization-test-secret"
 
-func setupAPI(t *testing.T) (srv *httptest.Server, st *store.Store, token string) {
+func setupAPI(t *testing.T) (srv *httptest.Server, st *sqlite.Store, token string) {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
-		t.Fatalf("store.Open: %v", err)
+		t.Fatalf("sqlite.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
 
@@ -107,7 +107,7 @@ func TestIngestAcceptAndReject(t *testing.T) {
 		t.Fatalf("registered ingest: got %d want 200", resp.StatusCode)
 	}
 
-	id := store.ServerID("web-1")
+	id := sqlite.ServerID("web-1")
 	sv := getServer(t, srv.URL, id, token) // authed -> real IP visible
 	if sv.Status != domain.StatusRunning {
 		t.Errorf("status = %q want running", sv.Status)
@@ -127,7 +127,7 @@ func TestMaskingListAndGet(t *testing.T) {
 	do(t, http.MethodPost, srv.URL+"/api/servers/update", domain.Server{
 		Name: "web-1", IPAddress: "203.0.113.7", TailscaleIP: "100.64.0.5", Hostname: "web1.local",
 	}, "")
-	id := store.ServerID("web-1")
+	id := sqlite.ServerID("web-1")
 
 	// Anonymous: public ip masked.
 	anon := getServer(t, srv.URL, id, "")
@@ -225,7 +225,7 @@ func TestAuthFlow(t *testing.T) {
 func TestForceStatusAndOrder(t *testing.T) {
 	srv, _, _ := setupAPI(t)
 	registerClient(t, srv.URL, "web-1")
-	id := store.ServerID("web-1")
+	id := sqlite.ServerID("web-1")
 
 	// Valid status.
 	resp, body := do(t, http.MethodPut, srv.URL+"/api/servers/"+id+"/status",
@@ -257,7 +257,7 @@ func TestForceStatusAndOrder(t *testing.T) {
 func TestDeleteRemovesServerAndAllowList(t *testing.T) {
 	srv, _, _ := setupAPI(t)
 	registerClient(t, srv.URL, "web-1")
-	id := store.ServerID("web-1")
+	id := sqlite.ServerID("web-1")
 
 	if resp, _ := do(t, http.MethodDelete, srv.URL+"/api/servers/"+id, nil, ""); resp.StatusCode != http.StatusOK {
 		t.Fatalf("delete: %d", resp.StatusCode)
