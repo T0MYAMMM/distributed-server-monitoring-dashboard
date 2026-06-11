@@ -88,6 +88,9 @@ Short version, per server:
 2. On that server (on the tailnet): `sudo bash install_agent.sh web-1 http://<hub-tailscale-ip>:5000`
 3. It appears Running within ~2s, showing its Tailscale IP and hostname.
 
+Step-by-step walkthrough for onboarding a machine from a fresh `git clone`
+(including Windows and build-from-source): **[docs/add-machine.md](docs/add-machine.md)**
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
