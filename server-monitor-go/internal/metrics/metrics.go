@@ -18,7 +18,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 
-	"github.com/thomasstefen/server-monitor/internal/models"
+	"github.com/thomasstefen/server-monitor/internal/domain"
 )
 
 // Collector gathers metrics and caches values that rarely change (location,
@@ -61,7 +61,7 @@ func NewCollector(name string) *Collector {
 }
 
 // Sample returns a fresh metrics snapshot for the host.
-func (c *Collector) Sample() models.Server {
+func (c *Collector) Sample() domain.Server {
 	cpuPct := cpuPercent()
 	vm, _ := mem.VirtualMemory()
 	diskPct, totalDiskGB := diskUsage()
@@ -74,7 +74,7 @@ func (c *Collector) Sample() models.Server {
 		totalMemGB = float64(vm.Total) / (1024 * 1024 * 1024)
 	}
 
-	return models.Server{
+	return domain.Server{
 		ID:          c.machineID,
 		Name:        c.name,
 		Type:        c.srvType,
