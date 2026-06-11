@@ -64,6 +64,24 @@ var migrations = []migration{
 			`ALTER TABLE servers ADD COLUMN tailscale_ip TEXT DEFAULT ''`,
 		},
 	},
+	{
+		version: 3,
+		name:    "metrics history (samples + 5m rollups)",
+		stmts: []string{
+			`CREATE TABLE metrics_samples (
+				server_id TEXT NOT NULL,
+				ts INTEGER NOT NULL,
+				cpu REAL, mem REAL, disk REAL, net_in REAL, net_out REAL
+			)`,
+			`CREATE INDEX idx_metrics_samples_server_ts ON metrics_samples(server_id, ts)`,
+			`CREATE TABLE metrics_rollup_5m (
+				server_id TEXT NOT NULL,
+				bucket INTEGER NOT NULL,
+				cpu REAL, mem REAL, disk REAL, net_in REAL, net_out REAL,
+				PRIMARY KEY (server_id, bucket)
+			)`,
+		},
+	},
 }
 
 // legacyBaselineVersion is the schema version produced by the pre-versioning

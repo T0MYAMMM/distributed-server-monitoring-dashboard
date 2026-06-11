@@ -19,6 +19,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/config"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 	httpapi "github.com/thomasstefen/server-monitor/internal/transport/http"
@@ -47,14 +48,16 @@ func main() {
 	authPrimitives := auth.New(cfg.SecretKey)
 	authService := authsvc.New(db, authPrimitives)
 	serversService := servers.New(db, servers.SystemClock{}, logger)
+	metricsService := metricssvc.New(db, metricssvc.SystemClock{}, logger)
 	hub := ws.New()
-	handlers := httpapi.New(serversService, authService, hub, cfg.AgentsDir, logger)
+	handlers := httpapi.New(serversService, authService, metricsService, hub, cfg.AgentsDir, logger)
 
-	// Background staleness sweeper; cancelled on shutdown.
+	// Background jobs; cancelled on shutdown.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	staleAfter := time.Duration(cfg.StaleAfterSeconds) * time.Second
 	go serversService.RunSweeper(ctx, 15*time.Second, staleAfter, handlers.Broadcast)
+	go metricsService.RunCompactor(ctx, 5*time.Minute)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,
