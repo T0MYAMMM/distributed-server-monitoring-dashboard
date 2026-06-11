@@ -1,13 +1,15 @@
-// Package api_test holds characterization tests written in Phase 0 of the
-// refactor. They pin the *current* HTTP contract so the Phase 1 restructure can
-// be proven behavior-preserving. Where an assertion encodes a behavior the
-// refactor will deliberately change later, it is called out in a comment.
-package api_test
+// Package httpapi_test holds characterization tests written in Phase 0 of the
+// refactor (relocated from internal/api in Phase 1). They pin the *current*
+// HTTP contract so the restructure can be proven behavior-preserving. Where an
+// assertion encodes a behavior the refactor will deliberately change later, it
+// is called out in a comment.
+package httpapi_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,11 +20,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/thomasstefen/server-monitor/internal/api"
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/domain"
-	"github.com/thomasstefen/server-monitor/internal/hub"
+	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
+	httpapi "github.com/thomasstefen/server-monitor/internal/transport/http"
+	"github.com/thomasstefen/server-monitor/internal/transport/ws"
 )
 
 const testSecret = "characterization-test-secret"
@@ -40,7 +44,12 @@ func setupAPI(t *testing.T) (srv *httptest.Server, st *sqlite.Store, token strin
 	if err != nil {
 		t.Fatalf("IssueToken: %v", err)
 	}
-	srv = httptest.NewServer(api.New(st, au, hub.New(), "").Handler())
+	h := httpapi.New(
+		servers.New(st, servers.SystemClock{}, slog.Default()),
+		authsvc.New(st, au),
+		ws.New(), "", slog.Default(),
+	)
+	srv = httptest.NewServer(h.Handler(slog.Default()))
 	t.Cleanup(srv.Close)
 	return srv, st, tok
 }
@@ -304,6 +313,49 @@ func TestCORSPreflightAndHealthz(t *testing.T) {
 	resp, body := do(t, http.MethodGet, srv.URL+"/healthz", nil, "")
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"ok"`) {
 		t.Errorf("healthz: %d %s", resp.StatusCode, body)
+	}
+}
+
+// TestV1MutationAuth locks decision D3: mutating /api/v1 routes require a valid
+// bearer token, while the legacy /api/ equivalents stay open.
+func TestV1MutationAuth(t *testing.T) {
+	srv, _, token := setupAPI(t)
+	registerClient(t, srv.URL, "web-1")
+	id := sqlite.ServerID("web-1")
+
+	// v1 mutation without a token is rejected.
+	if resp, _ := do(t, http.MethodDelete, srv.URL+"/api/v1/servers/"+id, nil, ""); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("v1 delete without token: got %d want 401", resp.StatusCode)
+	}
+	// v1 mutation with a valid token succeeds.
+	if resp, _ := do(t, http.MethodDelete, srv.URL+"/api/v1/servers/"+id, nil, token); resp.StatusCode != http.StatusOK {
+		t.Fatalf("v1 delete with token: got %d want 200", resp.StatusCode)
+	}
+
+	// Legacy mutation remains open (no token).
+	registerClient(t, srv.URL, "web-2")
+	id2 := sqlite.ServerID("web-2")
+	if resp, _ := do(t, http.MethodDelete, srv.URL+"/api/servers/"+id2, nil, ""); resp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy delete without token: got %d want 200", resp.StatusCode)
+	}
+}
+
+// TestV1ReadAliasMatchesLegacy confirms the canonical v1 read surface returns
+// the same masked shape as the legacy path.
+func TestV1ReadAliasMatchesLegacy(t *testing.T) {
+	srv, _, _ := setupAPI(t)
+	registerClient(t, srv.URL, "web-1")
+
+	resp, body := do(t, http.MethodGet, srv.URL+"/api/v1/servers", nil, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("v1 list: %d", resp.StatusCode)
+	}
+	var list []domain.Server
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("decode v1 list: %v", err)
+	}
+	if len(list) != 1 {
+		t.Errorf("v1 list len = %d want 1", len(list))
 	}
 }
 

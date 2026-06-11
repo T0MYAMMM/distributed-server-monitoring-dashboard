@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // Config holds all tunable backend settings.
@@ -37,7 +38,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Addr:              getenv("ADDR", "0.0.0.0:5000"),
 		DatabasePath:      getenv("DATABASE_PATH", filepath.Join(dataDir, "servers.db")),
-		StaleAfterSeconds: 30,
+		StaleAfterSeconds: getenvInt("STALE_AFTER_SECONDS", 30),
 		AgentsDir:         getenv("AGENTS_DIR", "./dist"),
 	}
 
@@ -76,6 +77,17 @@ func loadOrCreateSecret(dataDir string) ([]byte, error) {
 func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+// getenvInt reads an integer env var, falling back on empty or invalid values
+// so existing deployments that never set it run unchanged.
+func getenvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
 	}
 	return fallback
 }
