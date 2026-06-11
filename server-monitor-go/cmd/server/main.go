@@ -1,73 +1,90 @@
 // Command server is the monitoring backend: a REST + WebSocket API backed by
 // SQLite. Run it on each network's hub host (reachable on its Tailscale IP)
 // and point agents and the dashboard at it.
+//
+// Wiring only: config -> deps -> router -> serve. The dependency graph is built
+// explicitly here with constructor injection; no globals or init() side effects.
 package main
 
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/thomasstefen/server-monitor/internal/api"
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/config"
-	"github.com/thomasstefen/server-monitor/internal/hub"
-	"github.com/thomasstefen/server-monitor/internal/monitor"
+	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
+	httpapi "github.com/thomasstefen/server-monitor/internal/transport/http"
+	"github.com/thomasstefen/server-monitor/internal/transport/ws"
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
-	log.SetPrefix("[monitor] ")
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		logger.Error("config", "err", err)
+		os.Exit(1)
 	}
 
-	st, err := sqlite.Open(cfg.DatabasePath)
+	db, err := sqlite.Open(cfg.DatabasePath)
 	if err != nil {
-		log.Fatalf("store: %v", err)
+		logger.Error("store", "err", err)
+		os.Exit(1)
 	}
-	defer st.Close()
-	log.Printf("database ready at %s", cfg.DatabasePath)
+	defer db.Close()
+	logger.Info("database ready", "path", cfg.DatabasePath)
 
-	h := hub.New()
-	a := api.New(st, auth.New(cfg.SecretKey), h, cfg.AgentsDir)
+	// Build the dependency graph explicitly.
+	authPrimitives := auth.New(cfg.SecretKey)
+	authService := authsvc.New(db, authPrimitives)
+	serversService := servers.New(db, servers.SystemClock{}, logger)
+	hub := ws.New()
+	handlers := httpapi.New(serversService, authService, hub, cfg.AgentsDir, logger)
 
-	// Background staleness checker.
+	// Background staleness sweeper; cancelled on shutdown.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	staleAfter := time.Duration(cfg.StaleAfterSeconds) * time.Second
-	go monitor.Run(ctx, st, a, 15*time.Second, staleAfter)
+	go serversService.RunSweeper(ctx, 15*time.Second, staleAfter, handlers.Broadcast)
 
 	srv := &http.Server{
 		Addr:         cfg.Addr,
-		Handler:      a.Handler(),
+		Handler:      handlers.Handler(logger),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 0, // 0: long-lived WebSocket connections must not time out
 		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
-		log.Printf("listening on %s", cfg.Addr)
+		logger.Info("listening", "addr", cfg.Addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %v", err)
+			logger.Error("listen", "err", err)
+			os.Exit(1)
 		}
 	}()
 
-	// Graceful shutdown on SIGINT/SIGTERM.
+	// Graceful shutdown on SIGINT/SIGTERM: stop the sweeper, drain the WS hub so
+	// its handlers return, stop accepting, then close the database.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	log.Println("shutting down...")
+	logger.Info("shutting down")
+
+	cancel()
+	hub.CloseAll()
 
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutCancel()
-	_ = srv.Shutdown(shutCtx)
+	if err := srv.Shutdown(shutCtx); err != nil {
+		logger.Error("shutdown", "err", err)
+	}
 }
