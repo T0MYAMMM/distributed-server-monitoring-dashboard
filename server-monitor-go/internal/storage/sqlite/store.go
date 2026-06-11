@@ -11,9 +11,7 @@
 package sqlite
 
 import (
-	"crypto/md5"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -57,11 +55,9 @@ func Open(path string) (*Store, error) {
 // Close releases the database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-// ServerID derives the stable public id for a client name.
-func ServerID(name string) string {
-	sum := md5.Sum([]byte(name))
-	return hex.EncodeToString(sum[:])
-}
+// ServerID derives the stable public id for a client name. It delegates to
+// domain.ServerID so the id rule lives in one place.
+func ServerID(name string) string { return domain.ServerID(name) }
 
 // serverColumns is the canonical projection used by list/get queries.
 const serverColumns = `id, name, type, location, ip_address, hostname,

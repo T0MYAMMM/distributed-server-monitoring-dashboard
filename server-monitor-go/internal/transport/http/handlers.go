@@ -15,6 +15,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	"github.com/thomasstefen/server-monitor/internal/masking"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/transport/http/middleware"
 	"github.com/thomasstefen/server-monitor/internal/transport/ws"
@@ -24,6 +25,7 @@ import (
 type Handlers struct {
 	servers   *servers.Service
 	auth      *authsvc.Service
+	metrics   *metricssvc.Service
 	hub       *ws.Hub
 	agentsDir string
 	log       *slog.Logger
@@ -31,11 +33,11 @@ type Handlers struct {
 
 // New constructs the HTTP handlers. agentsDir holds prebuilt agent binaries to
 // serve at /download/<file>; pass "" to disable the download endpoint.
-func New(srv *servers.Service, a *authsvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
+func New(srv *servers.Service, a *authsvc.Service, m *metricssvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Handlers{servers: srv, auth: a, hub: hub, agentsDir: agentsDir, log: log}
+	return &Handlers{servers: srv, auth: a, metrics: m, hub: hub, agentsDir: agentsDir, log: log}
 }
 
 var upgrader = websocket.Upgrader{
@@ -68,6 +70,28 @@ func (h *Handlers) getServer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sv)
 }
 
+// serverMetrics returns a downsampled time series for one server over the
+// requested range (1h|6h|24h|7d), capped server-side at 500 points.
+func (h *Handlers) serverMetrics(w http.ResponseWriter, r *http.Request) {
+	series, err := h.metrics.History(r.PathValue("id"), r.URL.Query().Get("range"))
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, series)
+}
+
+// metricsSummary returns fleet KPIs and previous-window deltas for the
+// dashboard cards.
+func (h *Handlers) metricsSummary(w http.ResponseWriter, r *http.Request) {
+	summary, err := h.metrics.Summary(r.URL.Query().Get("range"))
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
+
 // updateServer ingests an agent metrics report. Rejected (unregistered) reports
 // are logged with the offending name and remote address before returning 403.
 func (h *Handlers) updateServer(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +106,12 @@ func (h *Handlers) updateServer(w http.ResponseWriter, r *http.Request) {
 		}
 		h.fail(w, err)
 		return
+	}
+	// Record time-series history for charts/trends; non-fatal on failure.
+	if h.metrics != nil {
+		if err := h.metrics.Record(in); err != nil {
+			h.log.Error("record metric sample", "name", in.Name, "err", err)
+		}
 	}
 	h.broadcast()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})

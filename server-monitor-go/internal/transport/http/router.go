@@ -42,6 +42,10 @@ func (h *Handlers) Handler(log *slog.Logger) http.Handler {
 	mux.Handle("PUT /api/v1/servers/{id}/order", requireAuth(http.HandlerFunc(h.setOrder)))
 	mux.Handle("POST /api/v1/clients", requireAuth(http.HandlerFunc(h.addClient)))
 
+	// Metrics history and fleet summary: new in v1 only, public reads.
+	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", h.serverMetrics)
+	mux.HandleFunc("GET /api/v1/metrics/summary", h.metricsSummary)
+
 	mux.HandleFunc("GET /healthz", h.healthz)
 
 	// Serve prebuilt agent binaries so tailnet hosts can self-install.

@@ -23,6 +23,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 	httpapi "github.com/thomasstefen/server-monitor/internal/transport/http"
@@ -47,6 +48,7 @@ func setupAPI(t *testing.T) (srv *httptest.Server, st *sqlite.Store, token strin
 	h := httpapi.New(
 		servers.New(st, servers.SystemClock{}, slog.Default()),
 		authsvc.New(st, au),
+		metricssvc.New(st, metricssvc.SystemClock{}, slog.Default()),
 		ws.New(), "", slog.Default(),
 	)
 	srv = httptest.NewServer(h.Handler(slog.Default()))
@@ -356,6 +358,43 @@ func TestV1ReadAliasMatchesLegacy(t *testing.T) {
 	}
 	if len(list) != 1 {
 		t.Errorf("v1 list len = %d want 1", len(list))
+	}
+}
+
+// TestMetricsEndpoints covers the B1 surface: an accepted report records a
+// sample, the per-server history endpoint returns a series, and the fleet
+// summary reports counts.
+func TestMetricsEndpoints(t *testing.T) {
+	srv, _, _ := setupAPI(t)
+	registerClient(t, srv.URL, "web-1")
+	do(t, http.MethodPost, srv.URL+"/api/servers/update",
+		domain.Server{Name: "web-1", CPU: 55, Memory: 40, Disk: 30}, "")
+	id := sqlite.ServerID("web-1")
+
+	// Per-server history.
+	resp, body := do(t, http.MethodGet, srv.URL+"/api/v1/servers/"+id+"/metrics?range=1h", nil, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("metrics history: %d", resp.StatusCode)
+	}
+	var series []domain.MetricSample
+	if err := json.Unmarshal(body, &series); err != nil {
+		t.Fatalf("decode series: %v", err)
+	}
+	if len(series) == 0 {
+		t.Error("expected at least one recorded sample in history")
+	}
+
+	// Fleet summary.
+	resp, body = do(t, http.MethodGet, srv.URL+"/api/v1/metrics/summary?range=24h", nil, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("metrics summary: %d", resp.StatusCode)
+	}
+	var sum domain.FleetSummary
+	if err := json.Unmarshal(body, &sum); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if sum.TotalServers != 1 {
+		t.Errorf("summary total_servers = %d want 1", sum.TotalServers)
 	}
 }
 
