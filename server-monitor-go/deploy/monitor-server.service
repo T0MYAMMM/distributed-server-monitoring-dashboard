@@ -1,0 +1,23 @@
+[Unit]
+Description=Distributed Server Monitor - Backend (Go)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Directory containing the monitor-server binary, ./data (db + secret) and
+# ./dist (agent binaries served at /download).
+WorkingDirectory=/opt/server-monitor
+ExecStart=/opt/server-monitor/monitor-server
+Environment=ADDR=0.0.0.0:5000
+Environment=DATA_DIR=/opt/server-monitor/data
+Environment=AGENTS_DIR=/opt/server-monitor/dist
+# Optional: pin a stable JWT secret instead of the auto-generated data/.secret
+# Environment=SECRET_KEY=change-me-to-a-long-random-string
+Restart=always
+RestartSec=5
+DynamicUser=yes
+StateDirectory=server-monitor
+
+[Install]
+WantedBy=multi-user.target

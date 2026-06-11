@@ -1,0 +1,20 @@
+[Unit]
+Description=Distributed Server Monitor - Frontend (Next.js)
+After=network-online.target monitor-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/server-monitor/frontend
+# Adjust the node/npm path to your install (e.g. an nvm shim or /usr/bin/npm).
+ExecStart=/usr/bin/npm start
+Environment=PORT=3000
+# The dashboard auto-detects the API at <host>:5000, so NEXT_PUBLIC_API_URL is
+# normally unnecessary. Set it only to force a fixed backend URL.
+# Environment=NEXT_PUBLIC_API_URL=http://100.98.88.100:5000
+Restart=always
+RestartSec=5
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target
