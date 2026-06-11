@@ -25,6 +25,11 @@ type Config struct {
 	// AgentsDir holds prebuilt agent binaries served at /download/<file> so
 	// tailnet servers can self-install with a single command.
 	AgentsDir string
+	// AlertWebhookURL receives alert JSON; empty disables webhook delivery.
+	AlertWebhookURL string
+	// AlertDiskThreshold is the disk-usage percent that raises a threshold
+	// alert. 0 disables threshold alerts.
+	AlertDiskThreshold float64
 }
 
 // Load builds a Config from the environment, generating and persisting a JWT
@@ -36,10 +41,12 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Addr:              getenv("ADDR", "0.0.0.0:5000"),
-		DatabasePath:      getenv("DATABASE_PATH", filepath.Join(dataDir, "servers.db")),
-		StaleAfterSeconds: getenvInt("STALE_AFTER_SECONDS", 30),
-		AgentsDir:         getenv("AGENTS_DIR", "./dist"),
+		Addr:               getenv("ADDR", "0.0.0.0:5000"),
+		DatabasePath:       getenv("DATABASE_PATH", filepath.Join(dataDir, "servers.db")),
+		StaleAfterSeconds:  getenvInt("STALE_AFTER_SECONDS", 30),
+		AgentsDir:          getenv("AGENTS_DIR", "./dist"),
+		AlertWebhookURL:    os.Getenv("ALERT_WEBHOOK_URL"),
+		AlertDiskThreshold: getenvFloat("ALERT_DISK_THRESHOLD", 90),
 	}
 
 	secret, err := loadOrCreateSecret(dataDir)
@@ -87,6 +94,16 @@ func getenvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
+		}
+	}
+	return fallback
+}
+
+// getenvFloat reads a float env var, falling back on empty or invalid values.
+func getenvFloat(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
 		}
 	}
 	return fallback

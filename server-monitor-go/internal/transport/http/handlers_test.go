@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/domain"
+	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
@@ -45,10 +47,14 @@ func setupAPI(t *testing.T) (srv *httptest.Server, st *sqlite.Store, token strin
 	if err != nil {
 		t.Fatalf("IssueToken: %v", err)
 	}
+	serversSvc := servers.New(st, servers.SystemClock{}, slog.Default())
+	alertsSvc := alertssvc.New(st, nil, alertssvc.SystemClock{}, 90, nil, slog.Default())
+	serversSvc.SetAlertSink(alertsSvc)
 	h := httpapi.New(
-		servers.New(st, servers.SystemClock{}, slog.Default()),
+		serversSvc,
 		authsvc.New(st, au),
 		metricssvc.New(st, metricssvc.SystemClock{}, slog.Default()),
+		alertsSvc,
 		ws.New(), "", slog.Default(),
 	)
 	srv = httptest.NewServer(h.Handler(slog.Default()))
@@ -422,6 +428,49 @@ func TestUnknownAgents(t *testing.T) {
 	}
 	if len(agents) != 1 || agents[0].Name != "mistyped" || agents[0].Count != 2 {
 		t.Errorf("agents = %+v want one 'mistyped' with count 2", agents)
+	}
+}
+
+// TestAlertsEndpoints covers B3: a disk-threshold breach on ingest creates an
+// alert, the list endpoint returns it, and acknowledge requires auth.
+func TestAlertsEndpoints(t *testing.T) {
+	srv, _, token := setupAPI(t)
+	registerClient(t, srv.URL, "db-1")
+
+	// Report with disk over the 90% threshold -> threshold alert.
+	do(t, http.MethodPost, srv.URL+"/api/servers/update",
+		domain.Server{Name: "db-1", Disk: 95}, "")
+
+	resp, body := do(t, http.MethodGet, srv.URL+"/api/v1/alerts", nil, "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list alerts: %d", resp.StatusCode)
+	}
+	var list []domain.Alert
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("decode alerts: %v", err)
+	}
+	if len(list) != 1 || list[0].Type != domain.AlertThreshold || list[0].ServerName != "db-1" {
+		t.Fatalf("alerts = %+v want one threshold alert for db-1", list)
+	}
+	if list[0].AcknowledgedAt != "" {
+		t.Errorf("new alert should be unacknowledged")
+	}
+	id := list[0].ID
+
+	// Acknowledge requires auth.
+	path := srv.URL + "/api/v1/alerts/" + strconv.FormatInt(id, 10) + "/acknowledge"
+	if resp, _ := do(t, http.MethodPost, path, nil, ""); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("ack without token: got %d want 401", resp.StatusCode)
+	}
+	if resp, _ := do(t, http.MethodPost, path, nil, token); resp.StatusCode != http.StatusOK {
+		t.Fatalf("ack with token: got %d want 200", resp.StatusCode)
+	}
+
+	// Now acknowledged.
+	_, body = do(t, http.MethodGet, srv.URL+"/api/v1/alerts", nil, "")
+	json.Unmarshal(body, &list)
+	if len(list) != 1 || list[0].AcknowledgedAt == "" {
+		t.Errorf("alert should be acknowledged: %+v", list)
 	}
 }
 

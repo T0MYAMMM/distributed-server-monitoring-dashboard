@@ -61,6 +61,29 @@ type Client struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// Alert severities and types.
+const (
+	SeverityInfo     = "info"
+	SeverityWarning  = "warning"
+	SeverityCritical = "critical"
+
+	AlertStatusChange = "status_change"
+	AlertThreshold    = "threshold"
+)
+
+// Alert is a recorded notable event: a status transition or a threshold breach.
+// AcknowledgedAt is empty until an admin acknowledges it.
+type Alert struct {
+	ID             int64  `json:"id"`
+	Type           string `json:"type"`
+	ServerID       string `json:"server_id"`
+	ServerName     string `json:"server_name"`
+	Severity       string `json:"severity"`
+	Message        string `json:"message"`
+	CreatedAt      string `json:"created_at"`
+	AcknowledgedAt string `json:"acknowledged_at"`
+}
+
 // UnknownAgent records an agent that reported under a name not on the
 // allow-list (a rejected ingest). Surfaced to admins to diagnose misnamed
 // agents instead of needing a packet capture.

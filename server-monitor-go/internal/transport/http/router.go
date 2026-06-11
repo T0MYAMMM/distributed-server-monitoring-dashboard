@@ -47,6 +47,10 @@ func (h *Handlers) Handler(log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", h.serverMetrics)
 	mux.HandleFunc("GET /api/v1/metrics/summary", h.metricsSummary)
 
+	// Alerts: list is a public read (dashboard bell); acknowledge requires auth.
+	mux.HandleFunc("GET /api/v1/alerts", h.listAlerts)
+	mux.Handle("POST /api/v1/alerts/{id}/acknowledge", requireAuth(http.HandlerFunc(h.acknowledgeAlert)))
+
 	mux.HandleFunc("GET /healthz", h.healthz)
 
 	// Serve prebuilt agent binaries so tailnet hosts can self-install.

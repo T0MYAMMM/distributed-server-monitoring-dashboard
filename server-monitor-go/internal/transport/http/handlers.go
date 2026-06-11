@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	"github.com/thomasstefen/server-monitor/internal/masking"
+	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
@@ -26,6 +28,7 @@ type Handlers struct {
 	servers   *servers.Service
 	auth      *authsvc.Service
 	metrics   *metricssvc.Service
+	alerts    *alertssvc.Service
 	hub       *ws.Hub
 	agentsDir string
 	log       *slog.Logger
@@ -33,11 +36,11 @@ type Handlers struct {
 
 // New constructs the HTTP handlers. agentsDir holds prebuilt agent binaries to
 // serve at /download/<file>; pass "" to disable the download endpoint.
-func New(srv *servers.Service, a *authsvc.Service, m *metricssvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
+func New(srv *servers.Service, a *authsvc.Service, m *metricssvc.Service, al *alertssvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Handlers{servers: srv, auth: a, metrics: m, hub: hub, agentsDir: agentsDir, log: log}
+	return &Handlers{servers: srv, auth: a, metrics: m, alerts: al, hub: hub, agentsDir: agentsDir, log: log}
 }
 
 var upgrader = websocket.Upgrader{
@@ -215,6 +218,40 @@ func (h *Handlers) unknownAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, agents)
+}
+
+// --- alerts ---
+
+// listAlerts returns recent alerts, optionally filtered by ?severity= and
+// limited by ?limit=. Public read for the dashboard bell/alerts page.
+func (h *Handlers) listAlerts(w http.ResponseWriter, r *http.Request) {
+	limit := 0
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	list, err := h.alerts.List(r.URL.Query().Get("severity"), limit)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// acknowledgeAlert marks an alert acknowledged. Auth enforced by the route.
+func (h *Handlers) acknowledgeAlert(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid alert id")
+		return
+	}
+	if err := h.alerts.Acknowledge(id); err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.broadcast()
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
 // --- auth ---
