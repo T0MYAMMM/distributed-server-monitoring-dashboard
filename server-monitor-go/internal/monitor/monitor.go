@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/thomasstefen/server-monitor/internal/store"
+	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 )
 
 // Broadcaster is the subset of the hub the monitor needs to notify dashboards.
@@ -17,7 +17,7 @@ type Broadcaster interface {
 
 // Run checks every `interval` for servers that have been silent longer than
 // `staleAfter` and marks them stopped. It returns when ctx is cancelled.
-func Run(ctx context.Context, s *store.Store, b Broadcaster, interval, staleAfter time.Duration) {
+func Run(ctx context.Context, s *sqlite.Store, b Broadcaster, interval, staleAfter time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 

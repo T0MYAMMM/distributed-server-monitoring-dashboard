@@ -18,7 +18,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/config"
 	"github.com/thomasstefen/server-monitor/internal/hub"
 	"github.com/thomasstefen/server-monitor/internal/monitor"
-	"github.com/thomasstefen/server-monitor/internal/store"
+	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 )
 
 func main() {
@@ -30,7 +30,7 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	st, err := store.Open(cfg.DatabasePath)
+	st, err := sqlite.Open(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("store: %v", err)
 	}

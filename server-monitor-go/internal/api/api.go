@@ -14,7 +14,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/auth"
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	"github.com/thomasstefen/server-monitor/internal/hub"
-	"github.com/thomasstefen/server-monitor/internal/store"
+	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 )
 
 // maskedIP is shown to unauthenticated viewers instead of real addresses.
@@ -22,7 +22,7 @@ const maskedIP = "***.***.***.**"
 
 // API holds the dependencies shared by all handlers.
 type API struct {
-	store     *store.Store
+	store     *sqlite.Store
 	auth      *auth.Auth
 	hub       *hub.Hub
 	agentsDir string
@@ -30,7 +30,7 @@ type API struct {
 
 // New constructs an API. agentsDir holds prebuilt agent binaries to serve at
 // /download/<file>; pass "" to disable the download endpoint.
-func New(s *store.Store, a *auth.Auth, h *hub.Hub, agentsDir string) *API {
+func New(s *sqlite.Store, a *auth.Auth, h *hub.Hub, agentsDir string) *API {
 	return &API{store: s, auth: a, hub: h, agentsDir: agentsDir}
 }
 
