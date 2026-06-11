@@ -34,19 +34,31 @@ tailnet.
 
 ## Layout
 
+Layered architecture: `transport → service → storage interface → sqlite`;
+`domain` depends on nothing. `main.go` wires the graph with constructor
+injection (no globals, no `init()` side effects).
+
 ```
 server-monitor-go/
 ├── cmd/
-│   ├── server/        # backend entry point (main, graceful shutdown)
+│   ├── server/        # backend entry point (wiring, graceful shutdown)
 │   └── agent/         # agent entry point (+ Unix/Windows service wrappers)
 ├── internal/
 │   ├── config/        # env-driven configuration, JWT secret persistence
-│   ├── models/        # shared Server/Client types (JSON contract)
-│   ├── store/         # SQLite persistence layer (all SQL lives here)
-│   ├── auth/          # bcrypt password hashing + JWT (HS256) sessions
-│   ├── hub/           # WebSocket fan-out to dashboards
-│   ├── api/           # HTTP handlers, CORS, routing, download endpoint
-│   ├── monitor/       # background staleness checker (running→stopped)
+│   ├── domain/        # core types (Server, Status, Alert, …) + sentinel errors
+│   ├── storage/
+│   │   └── sqlite/    # SQLite persistence + versioned schema_migrations
+│   ├── service/
+│   │   ├── servers/   # lifecycle, ingest accept/reject, sweep (Clock-injected)
+│   │   ├── auth/      # first-run init, login, reset, token verify
+│   │   ├── metrics/   # history, fleet summary, rollup/prune compaction
+│   │   └── alerts/    # status/threshold alerts + pluggable Notifier
+│   ├── transport/
+│   │   ├── http/      # thin handlers, route table (legacy + /api/v1), error mapper
+│   │   │   └── middleware/  # request id, slog logging, recovery, CORS, auth
+│   │   └── ws/        # WebSocket fan-out to dashboards
+│   ├── masking/       # IP-masking rule (single place)
+│   ├── auth/          # bcrypt + JWT (HS256) primitives
 │   └── metrics/       # agent-side resource + geo/IP collection
 ├── deploy/            # systemd units for the hub (server + frontend)
 ├── scripts/           # build.sh, install_agent.sh, install_agent.ps1
@@ -217,31 +229,64 @@ All via environment variables (see `internal/config`):
 | `DATABASE_PATH` | `<DATA_DIR>/servers.db` | SQLite file. |
 | `AGENTS_DIR` | `./dist` | Binaries served at `/download/<file>`. Empty ⇒ disabled. |
 | `SECRET_KEY` | _(auto, persisted)_ | JWT signing key. Set to keep tokens stable across hosts. |
+| `STALE_AFTER_SECONDS` | `30` | Silence before a `running` server is marked `stopped`. |
+| `ALERT_WEBHOOK_URL` | _(empty)_ | Generic webhook for alert JSON. Empty ⇒ alert delivery disabled. |
+| `ALERT_DISK_THRESHOLD` | `90` | Disk-usage percent that raises a threshold alert. `0` ⇒ disabled. |
 
 Agent flags: `--name` (must match a registered client), `--server` (hub base
 URL, or `MONITOR_SERVER` env), `--interval` (default `2s`).
 
 ## API contract
 
-All endpoints consumed by the dashboard and agents:
+`/api/v1/...` is the **canonical surface**. Every legacy `/api/...` path below
+remains functional as an alias to the same handler, so deployed agents and
+older clients keep working unmodified. New endpoints (metrics, alerts,
+unknown-agents) are v1-only.
+
+**Difference on v1:** mutating routes require `Authorization: Bearer <jwt>`
+(delete, force-status, set-order, add-client, acknowledge); the legacy paths
+stay open (the tailnet is the boundary). Reads and agent ingest are open on
+both surfaces.
+
+Core contract (available on both `/api/...` and `/api/v1/...`):
+
+| Method | Path | Auth (v1) | Notes |
+|---|---|---|---|
+| GET | `/servers` | — | List; IPs masked unless `Authorization: Bearer <jwt>`. |
+| GET | `/servers/{id}` | — | Single server. |
+| POST | `/servers/update` | — | Agent metrics ingest (allow-listed names only; 403 otherwise). |
+| PUT | `/servers/{id}/status` | JWT | Force status (running/stopped/maintenance). |
+| PUT | `/servers/{id}/order` | JWT | Set display order. |
+| POST | `/servers/{id}/heartbeat` | — | Lightweight liveness. |
+| DELETE | `/servers/{id}` | JWT | Remove server + allow-list entry. |
+| GET | `/clients` | — | List allow-listed clients. |
+| POST | `/clients` | JWT | Add an allow-listed client. |
+| GET | `/auth/status` | — | `{initialized}`. |
+| POST | `/auth/initialize` | — | Set admin password (first run). |
+| POST | `/auth/login` | — | Returns a 1-day JWT. |
+| POST | `/auth/reset-password` | — | Change admin password (verifies current). |
+| GET | `/ws/dashboard` | — | WebSocket: pushes the (IP-masked) server list. |
+
+New in v1 (no legacy alias):
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/v1/servers/{id}/metrics?range=1h\|6h\|24h\|7d` | — | Downsampled time series (≤500 points). |
+| GET | `/api/v1/metrics/summary?range=...` | — | Fleet KPIs + previous-window deltas + uptime %. |
+| GET | `/api/v1/alerts?severity=&limit=` | — | Recent alerts (status changes + threshold breaches). |
+| POST | `/api/v1/alerts/{id}/acknowledge` | JWT | Acknowledge an alert. |
+| GET | `/api/v1/admin/unknown-agents` | JWT | Recently rejected (unregistered) agent reports. |
+
+Unversioned:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/servers` | List; IPs masked unless `Authorization: Bearer <jwt>`. |
-| GET | `/api/servers/{id}` | Single server. |
-| POST | `/api/servers/update` | Agent metrics ingest (allow-listed names only). |
-| PUT | `/api/servers/{id}/status` | Force status (running/stopped/maintenance). |
-| PUT | `/api/servers/{id}/order` | Set display order. |
-| POST | `/api/servers/{id}/heartbeat` | Lightweight liveness. |
-| DELETE | `/api/servers/{id}` | Remove server + allow-list entry. |
-| GET / POST | `/api/clients` | List / add allow-listed clients. |
-| GET | `/api/auth/status` | `{initialized}`. |
-| POST | `/api/auth/initialize` | Set admin password (first run). |
-| POST | `/api/auth/login` | Returns a 1-day JWT. |
-| POST | `/api/auth/reset-password` | Change admin password. |
-| GET | `/api/ws/dashboard` | WebSocket: pushes the (IP-masked) server list. |
 | GET | `/download/<file>` | Serves agent binaries from `AGENTS_DIR`. |
 | GET | `/healthz` | Liveness. |
+
+Error bodies are `{"error": "<message>"}` on the legacy surface; the v1
+auth gate returns the nested `{"error":{"code","message"}}` envelope, which
+will become the v1-wide shape when the v1-consuming frontend lands.
 
 ## Behaviour notes
 

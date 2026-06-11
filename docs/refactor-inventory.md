@@ -321,7 +321,7 @@ Deferred deliberate behavior changes (tracked, not yet applied):
 |---|---|---|
 | 0 | Audit + characterization tests | DONE: inventory written; 3 test files green under `go vet` + `go test -race` (`internal/api`, `internal/store`, `internal/models`). Awaiting go-ahead for Phase 1. |
 | 1 | Backend restructure (no behavior change) | DONE: domain / storage(sqlite+versioned migrations) / service(servers,auth) / transport(http,ws,middleware) / masking / config(slog, graceful drain, STALE_AFTER_SECONDS). /api/v1 aliases live; legacy preserved. Verified: race tests, build.sh targets, runtime smoke, real servers.db upgraded in place. |
-| 2 | Backend features (B1 metrics, B2 observability, B3 alerts, B4 v1) | not started. B4 partially in place (v1 aliases + v1 auth gate); B2 partially in place (rejected-ingest logging). |
+| 2 | Backend features (B1 metrics, B2 observability, B3 alerts, B4 v1) | DONE. B1: metrics_samples + 5m rollups, history/summary endpoints, compaction (migration v3). B2: unknown_agents table + admin endpoint (v4). B3: alerts table (v5), status/threshold emission, webhook notifier, list/ack endpoints. B4: v1 canonical surface documented in backend README. Each with fake-clock/fake-repo + handler tests. |
 | 3 | Frontend foundation (shell, tokens, client, WS, Query) | not started |
 | 4 | Page rebuilds (Dashboard, Servers, Alerts, Admin) | not started |
 | 5 | Hardening & docs | not started |
