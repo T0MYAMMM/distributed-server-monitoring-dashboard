@@ -41,6 +41,7 @@ func (h *Handlers) Handler(log *slog.Logger) http.Handler {
 	mux.Handle("PUT /api/v1/servers/{id}/status", requireAuth(http.HandlerFunc(h.setStatus)))
 	mux.Handle("PUT /api/v1/servers/{id}/order", requireAuth(http.HandlerFunc(h.setOrder)))
 	mux.Handle("POST /api/v1/clients", requireAuth(http.HandlerFunc(h.addClient)))
+	mux.Handle("GET /api/v1/admin/unknown-agents", requireAuth(http.HandlerFunc(h.unknownAgents)))
 
 	// Metrics history and fleet summary: new in v1 only, public reads.
 	mux.HandleFunc("GET /api/v1/servers/{id}/metrics", h.serverMetrics)

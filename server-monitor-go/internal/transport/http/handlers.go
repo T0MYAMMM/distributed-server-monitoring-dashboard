@@ -103,6 +103,9 @@ func (h *Handlers) updateServer(w http.ResponseWriter, r *http.Request) {
 	if err := h.servers.Ingest(in); err != nil {
 		if err == domain.ErrNotAllowed {
 			h.log.Warn("rejected ingest report", "name", in.Name, "remote", r.RemoteAddr)
+			if rerr := h.servers.RecordUnknownAgent(in.Name, r.RemoteAddr); rerr != nil {
+				h.log.Error("record unknown agent", "err", rerr)
+			}
 		}
 		h.fail(w, err)
 		return
@@ -201,6 +204,17 @@ func (h *Handlers) addClient(w http.ResponseWriter, r *http.Request) {
 	}
 	h.broadcast()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
+// unknownAgents returns recently rejected (unregistered) agent reports for the
+// admin panel. Auth is enforced by the route's RequireAuth wrapper.
+func (h *Handlers) unknownAgents(w http.ResponseWriter, r *http.Request) {
+	agents, err := h.servers.UnknownAgents()
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, agents)
 }
 
 // --- auth ---

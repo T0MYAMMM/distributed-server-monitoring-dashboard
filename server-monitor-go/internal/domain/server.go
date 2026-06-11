@@ -60,3 +60,13 @@ type Client struct {
 	Name      string `json:"name"`
 	CreatedAt string `json:"created_at"`
 }
+
+// UnknownAgent records an agent that reported under a name not on the
+// allow-list (a rejected ingest). Surfaced to admins to diagnose misnamed
+// agents instead of needing a packet capture.
+type UnknownAgent struct {
+	Name       string `json:"name"`
+	RemoteAddr string `json:"remote_addr"`
+	LastSeen   string `json:"last_seen"`
+	Count      int64  `json:"count"`
+}

@@ -29,6 +29,8 @@ type Repo interface {
 	ClientExists(name string) (bool, error)
 	ListClients() ([]domain.Client, error)
 	MarkStaleStopped(staleAfter time.Duration) ([]string, error)
+	RecordUnknownAgent(name, remoteAddr string, when time.Time) error
+	ListUnknownAgents() ([]domain.UnknownAgent, error)
 }
 
 // Clock abstracts time so the sweep loop is testable without real delays.
@@ -149,6 +151,16 @@ func (s *Service) AddClient(name string) error {
 
 // ListClients returns the allow-list entries.
 func (s *Service) ListClients() ([]domain.Client, error) { return s.repo.ListClients() }
+
+// RecordUnknownAgent notes a rejected ingest for admin observability.
+func (s *Service) RecordUnknownAgent(name, remoteAddr string) error {
+	return s.repo.RecordUnknownAgent(name, remoteAddr, s.clock.Now())
+}
+
+// UnknownAgents returns recently rejected agent names for the admin panel.
+func (s *Service) UnknownAgents() ([]domain.UnknownAgent, error) {
+	return s.repo.ListUnknownAgents()
+}
 
 // SweepStale flips servers silent for longer than staleAfter to stopped,
 // returning the names that changed so the caller can broadcast.

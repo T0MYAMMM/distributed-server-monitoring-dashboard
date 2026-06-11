@@ -292,6 +292,41 @@ func (s *Store) MarkStaleStopped(staleAfter time.Duration) ([]string, error) {
 	return changed, nil
 }
 
+// --- unknown agents (ingest observability) ---
+
+// RecordUnknownAgent upserts a rejected ingest: it increments the seen count
+// and refreshes the remote address and last-seen time for that name.
+func (s *Store) RecordUnknownAgent(name, remoteAddr string, when time.Time) error {
+	ts := when.UTC().Format(timeLayout)
+	_, err := s.db.Exec(`INSERT INTO unknown_agents (name, remote_addr, last_seen, count)
+		VALUES (?, ?, ?, 1)
+		ON CONFLICT(name) DO UPDATE SET
+			remote_addr = excluded.remote_addr,
+			last_seen = excluded.last_seen,
+			count = count + 1`,
+		name, remoteAddr, ts)
+	return err
+}
+
+// ListUnknownAgents returns rejected-ingest entries, most recently seen first.
+func (s *Store) ListUnknownAgents() ([]domain.UnknownAgent, error) {
+	rows, err := s.db.Query(`SELECT name, remote_addr, last_seen, count
+		FROM unknown_agents ORDER BY last_seen DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.UnknownAgent, 0)
+	for rows.Next() {
+		var u domain.UnknownAgent
+		if err := rows.Scan(&u.Name, &u.RemoteAddr, &u.LastSeen, &u.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // --- admin auth ---
 
 // IsInitialized reports whether an admin password has been set.
