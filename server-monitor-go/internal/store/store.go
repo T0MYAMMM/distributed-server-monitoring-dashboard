@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thomasstefen/server-monitor/internal/models"
+	"github.com/thomasstefen/server-monitor/internal/domain"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver (no cgo), keeps a static binary
 )
@@ -146,8 +146,8 @@ const serverColumns = `id, name, type, location, ip_address, hostname,
 	os_type, cpu_info, total_memory, total_disk, order_index, first_seen,
 	last_update`
 
-func scanServer(row interface{ Scan(...any) error }) (models.Server, error) {
-	var sv models.Server
+func scanServer(row interface{ Scan(...any) error }) (domain.Server, error) {
+	var sv domain.Server
 	err := row.Scan(
 		&sv.ID, &sv.Name, &sv.Type, &sv.Location, &sv.IPAddress, &sv.Hostname,
 		&sv.TailscaleIP, &sv.Status, &sv.Uptime, &sv.NetworkIn, &sv.NetworkOut,
@@ -159,7 +159,7 @@ func scanServer(row interface{ Scan(...any) error }) (models.Server, error) {
 
 // ListServers returns every server ordered for display (highest order_index
 // first, then oldest first as a stable tiebreaker).
-func (s *Store) ListServers() ([]models.Server, error) {
+func (s *Store) ListServers() ([]domain.Server, error) {
 	rows, err := s.db.Query(`SELECT ` + serverColumns + ` FROM servers
 		ORDER BY order_index DESC, first_seen ASC`)
 	if err != nil {
@@ -167,7 +167,7 @@ func (s *Store) ListServers() ([]models.Server, error) {
 	}
 	defer rows.Close()
 
-	servers := make([]models.Server, 0)
+	servers := make([]domain.Server, 0)
 	for rows.Next() {
 		sv, err := scanServer(rows)
 		if err != nil {
@@ -179,14 +179,14 @@ func (s *Store) ListServers() ([]models.Server, error) {
 }
 
 // GetServer fetches a single server by its public id.
-func (s *Store) GetServer(id string) (models.Server, bool, error) {
+func (s *Store) GetServer(id string) (domain.Server, bool, error) {
 	row := s.db.QueryRow(`SELECT `+serverColumns+` FROM servers WHERE id = ?`, id)
 	sv, err := scanServer(row)
 	if err == sql.ErrNoRows {
-		return models.Server{}, false, nil
+		return domain.Server{}, false, nil
 	}
 	if err != nil {
-		return models.Server{}, false, err
+		return domain.Server{}, false, err
 	}
 	return sv, true, nil
 }
@@ -205,8 +205,8 @@ func (s *Store) IsClientAllowed(name string) (bool, error) {
 // name) and marks it running. Rows are only updated, never inserted here: a
 // server must first be registered via AddClient. Returns false if no allowed
 // row matched. The status transition (if any) is returned for logging.
-func (s *Store) UpdateMetrics(in models.Server) (changed bool, oldStatus string, err error) {
-	var prev string
+func (s *Store) UpdateMetrics(in domain.Server) (changed bool, oldStatus domain.Status, err error) {
+	var prev domain.Status
 	err = s.db.QueryRow(`SELECT status FROM servers WHERE name = ?`, in.Name).Scan(&prev)
 	if err == sql.ErrNoRows {
 		return false, "", nil
@@ -245,7 +245,7 @@ func (s *Store) Heartbeat(id string) error {
 }
 
 // SetStatus forces a server's status by id.
-func (s *Store) SetStatus(id, status string) error {
+func (s *Store) SetStatus(id string, status domain.Status) error {
 	now := time.Now().UTC().Format(timeLayout)
 	_, err := s.db.Exec(`UPDATE servers SET status = ?, last_update = ? WHERE id = ?`,
 		status, now, id)
@@ -294,16 +294,16 @@ func (s *Store) ClientExists(name string) (bool, error) {
 }
 
 // ListClients returns the allow-list entries.
-func (s *Store) ListClients() ([]models.Client, error) {
+func (s *Store) ListClients() ([]domain.Client, error) {
 	rows, err := s.db.Query(`SELECT name, created_at FROM allowed_clients ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	clients := make([]models.Client, 0)
+	clients := make([]domain.Client, 0)
 	for rows.Next() {
-		var c models.Client
+		var c domain.Client
 		if err := rows.Scan(&c.Name, &c.CreatedAt); err != nil {
 			return nil, err
 		}

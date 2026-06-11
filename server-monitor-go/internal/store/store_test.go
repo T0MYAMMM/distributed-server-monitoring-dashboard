@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thomasstefen/server-monitor/internal/models"
+	"github.com/thomasstefen/server-monitor/internal/domain"
 )
 
 func newStore(t *testing.T) *Store {
@@ -30,7 +30,7 @@ func TestAddClientCreatesPendingRow(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("GetServer: ok=%v err=%v", ok, err)
 	}
-	if sv.Status != models.StatusMaintenance {
+	if sv.Status != domain.StatusMaintenance {
 		t.Errorf("new client status = %q want maintenance", sv.Status)
 	}
 	if sv.Location != "Pending" {
@@ -45,23 +45,23 @@ func TestUpdateMetricsMarksRunning(t *testing.T) {
 	st := newStore(t)
 	_ = st.AddClient("web-1")
 
-	changed, old, err := st.UpdateMetrics(models.Server{Name: "web-1", CPU: 10})
+	changed, old, err := st.UpdateMetrics(domain.Server{Name: "web-1", CPU: 10})
 	if err != nil {
 		t.Fatalf("UpdateMetrics: %v", err)
 	}
 	if !changed {
 		t.Fatal("UpdateMetrics changed = false want true")
 	}
-	if old != models.StatusMaintenance {
+	if old != domain.StatusMaintenance {
 		t.Errorf("previous status = %q want maintenance", old)
 	}
 	sv, _, _ := st.GetServer(ServerID("web-1"))
-	if sv.Status != models.StatusRunning {
+	if sv.Status != domain.StatusRunning {
 		t.Errorf("status after update = %q want running", sv.Status)
 	}
 
 	// Unregistered/no-row name does not insert.
-	changed, _, err = st.UpdateMetrics(models.Server{Name: "ghost"})
+	changed, _, err = st.UpdateMetrics(domain.Server{Name: "ghost"})
 	if err != nil {
 		t.Fatalf("UpdateMetrics ghost: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestUpdateMetricsMarksRunning(t *testing.T) {
 func TestMarkStaleStopped(t *testing.T) {
 	st := newStore(t)
 	_ = st.AddClient("web-1")
-	if _, _, err := st.UpdateMetrics(models.Server{Name: "web-1"}); err != nil {
+	if _, _, err := st.UpdateMetrics(domain.Server{Name: "web-1"}); err != nil {
 		t.Fatalf("UpdateMetrics: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestMarkStaleStopped(t *testing.T) {
 	if len(changed) != 0 {
 		t.Fatalf("fresh sweep changed %v want none", changed)
 	}
-	if sv, _, _ := st.GetServer(ServerID("web-1")); sv.Status != models.StatusRunning {
+	if sv, _, _ := st.GetServer(ServerID("web-1")); sv.Status != domain.StatusRunning {
 		t.Errorf("status = %q want running after fresh sweep", sv.Status)
 	}
 
@@ -101,7 +101,7 @@ func TestMarkStaleStopped(t *testing.T) {
 	if len(changed) != 1 || changed[0] != "web-1" {
 		t.Fatalf("stale sweep changed %v want [web-1]", changed)
 	}
-	if sv, _, _ := st.GetServer(ServerID("web-1")); sv.Status != models.StatusStopped {
+	if sv, _, _ := st.GetServer(ServerID("web-1")); sv.Status != domain.StatusStopped {
 		t.Errorf("status = %q want stopped after stale sweep", sv.Status)
 	}
 
@@ -121,16 +121,16 @@ func TestHeartbeatSkipsMaintenance(t *testing.T) {
 	if err := st.Heartbeat(id); err != nil {
 		t.Fatalf("Heartbeat: %v", err)
 	}
-	if sv, _, _ := st.GetServer(id); sv.Status != models.StatusMaintenance {
+	if sv, _, _ := st.GetServer(id); sv.Status != domain.StatusMaintenance {
 		t.Errorf("status = %q want maintenance (heartbeat must skip it)", sv.Status)
 	}
 
 	// From stopped, heartbeat marks running.
-	_ = st.SetStatus(id, models.StatusStopped)
+	_ = st.SetStatus(id, domain.StatusStopped)
 	if err := st.Heartbeat(id); err != nil {
 		t.Fatalf("Heartbeat: %v", err)
 	}
-	if sv, _, _ := st.GetServer(id); sv.Status != models.StatusRunning {
+	if sv, _, _ := st.GetServer(id); sv.Status != domain.StatusRunning {
 		t.Errorf("status = %q want running after heartbeat", sv.Status)
 	}
 }

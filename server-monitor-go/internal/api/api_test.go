@@ -20,8 +20,8 @@ import (
 
 	"github.com/thomasstefen/server-monitor/internal/api"
 	"github.com/thomasstefen/server-monitor/internal/auth"
+	"github.com/thomasstefen/server-monitor/internal/domain"
 	"github.com/thomasstefen/server-monitor/internal/hub"
-	"github.com/thomasstefen/server-monitor/internal/models"
 	"github.com/thomasstefen/server-monitor/internal/store"
 )
 
@@ -88,19 +88,19 @@ func TestIngestAcceptAndReject(t *testing.T) {
 
 	// Reject: unregistered name -> 403.
 	if resp, _ := do(t, http.MethodPost, srv.URL+"/api/servers/update",
-		models.Server{Name: "ghost"}, ""); resp.StatusCode != http.StatusForbidden {
+		domain.Server{Name: "ghost"}, ""); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("unregistered ingest: got %d want 403", resp.StatusCode)
 	}
 
 	// Reject: empty name -> 400.
 	if resp, _ := do(t, http.MethodPost, srv.URL+"/api/servers/update",
-		models.Server{Name: ""}, ""); resp.StatusCode != http.StatusBadRequest {
+		domain.Server{Name: ""}, ""); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("empty-name ingest: got %d want 400", resp.StatusCode)
 	}
 
 	// Accept: registered name -> 200, row goes running, nz() defaults applied.
 	registerClient(t, srv.URL, "web-1")
-	resp, _ := do(t, http.MethodPost, srv.URL+"/api/servers/update", models.Server{
+	resp, _ := do(t, http.MethodPost, srv.URL+"/api/servers/update", domain.Server{
 		Name: "web-1", CPU: 42.5, Memory: 60, // Type/Location/IPAddress left empty
 	}, "")
 	if resp.StatusCode != http.StatusOK {
@@ -109,7 +109,7 @@ func TestIngestAcceptAndReject(t *testing.T) {
 
 	id := store.ServerID("web-1")
 	sv := getServer(t, srv.URL, id, token) // authed -> real IP visible
-	if sv.Status != models.StatusRunning {
+	if sv.Status != domain.StatusRunning {
 		t.Errorf("status = %q want running", sv.Status)
 	}
 	if sv.CPU != 42.5 {
@@ -124,7 +124,7 @@ func TestIngestAcceptAndReject(t *testing.T) {
 func TestMaskingListAndGet(t *testing.T) {
 	srv, _, token := setupAPI(t)
 	registerClient(t, srv.URL, "web-1")
-	do(t, http.MethodPost, srv.URL+"/api/servers/update", models.Server{
+	do(t, http.MethodPost, srv.URL+"/api/servers/update", domain.Server{
 		Name: "web-1", IPAddress: "203.0.113.7", TailscaleIP: "100.64.0.5", Hostname: "web1.local",
 	}, "")
 	id := store.ServerID("web-1")
@@ -153,7 +153,7 @@ func TestMaskingListAndGet(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("list: %d", resp.StatusCode)
 	}
-	var list []models.Server
+	var list []domain.Server
 	if err := json.Unmarshal(body, &list); err != nil {
 		t.Fatalf("decode list: %v", err)
 	}
@@ -233,9 +233,9 @@ func TestForceStatusAndOrder(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("set status: %d %s", resp.StatusCode, body)
 	}
-	var sv models.Server
+	var sv domain.Server
 	json.Unmarshal(body, &sv)
-	if sv.Status != models.StatusStopped {
+	if sv.Status != domain.StatusStopped {
 		t.Errorf("status = %q want stopped", sv.Status)
 	}
 	// Invalid status enum.
@@ -267,7 +267,7 @@ func TestDeleteRemovesServerAndAllowList(t *testing.T) {
 	}
 	// Allow-list entry removed too: ingest now rejected.
 	if resp, _ := do(t, http.MethodPost, srv.URL+"/api/servers/update",
-		models.Server{Name: "web-1"}, ""); resp.StatusCode != http.StatusForbidden {
+		domain.Server{Name: "web-1"}, ""); resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("ingest after delete: got %d want 403", resp.StatusCode)
 	}
 }
@@ -283,7 +283,7 @@ func TestClients(t *testing.T) {
 	}
 	// List contains the client.
 	_, body := do(t, http.MethodGet, srv.URL+"/api/clients", nil, "")
-	var clients []models.Client
+	var clients []domain.Client
 	json.Unmarshal(body, &clients)
 	if len(clients) != 1 || clients[0].Name != "web-1" {
 		t.Errorf("clients = %+v want [web-1]", clients)
@@ -323,7 +323,7 @@ func TestWebSocketSnapshotAndBroadcast(t *testing.T) {
 	if _, msg, err := conn.ReadMessage(); err != nil {
 		t.Fatalf("read snapshot: %v", err)
 	} else {
-		var snap []models.Server
+		var snap []domain.Server
 		if err := json.Unmarshal(msg, &snap); err != nil {
 			t.Fatalf("decode snapshot: %v", err)
 		}
@@ -331,14 +331,14 @@ func TestWebSocketSnapshotAndBroadcast(t *testing.T) {
 
 	// An accepted report triggers a broadcast frame carrying the update.
 	do(t, http.MethodPost, srv.URL+"/api/servers/update",
-		models.Server{Name: "web-1", IPAddress: "203.0.113.7", CPU: 99}, "")
+		domain.Server{Name: "web-1", IPAddress: "203.0.113.7", CPU: 99}, "")
 
 	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		t.Fatalf("read broadcast: %v", err)
 	}
-	var pushed []models.Server
+	var pushed []domain.Server
 	if err := json.Unmarshal(msg, &pushed); err != nil {
 		t.Fatalf("decode broadcast: %v", err)
 	}
@@ -352,13 +352,13 @@ func TestWebSocketSnapshotAndBroadcast(t *testing.T) {
 }
 
 // getServer fetches and decodes a single server, failing the test on non-200.
-func getServer(t *testing.T, base, id, token string) models.Server {
+func getServer(t *testing.T, base, id, token string) domain.Server {
 	t.Helper()
 	resp, body := do(t, http.MethodGet, base+"/api/servers/"+url.PathEscape(id), nil, token)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("get server %s: status %d body %s", id, resp.StatusCode, body)
 	}
-	var sv models.Server
+	var sv domain.Server
 	if err := json.Unmarshal(body, &sv); err != nil {
 		t.Fatalf("decode server: %v", err)
 	}

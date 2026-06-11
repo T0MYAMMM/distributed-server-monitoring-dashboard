@@ -12,8 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/thomasstefen/server-monitor/internal/auth"
+	"github.com/thomasstefen/server-monitor/internal/domain"
 	"github.com/thomasstefen/server-monitor/internal/hub"
-	"github.com/thomasstefen/server-monitor/internal/models"
 	"github.com/thomasstefen/server-monitor/internal/store"
 )
 
@@ -106,7 +106,7 @@ func (a *API) getServer(w http.ResponseWriter, r *http.Request) {
 // clients are accepted; on success the fresh snapshot is broadcast to
 // dashboards for real-time updates.
 func (a *API) updateServer(w http.ResponseWriter, r *http.Request) {
-	var in models.Server
+	var in domain.Server
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid data")
 		return
@@ -135,7 +135,7 @@ func (a *API) updateServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "Server not found")
 		return
 	}
-	if old != models.StatusRunning {
+	if old != domain.StatusRunning {
 		log.Printf("server %q status: %s -> running", in.Name, old)
 	}
 
@@ -159,14 +159,14 @@ func (a *API) deleteServer(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) setStatus(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Status string `json:"status"`
+		Status domain.Status `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid data")
 		return
 	}
 	switch body.Status {
-	case models.StatusRunning, models.StatusStopped, models.StatusMaintenance:
+	case domain.StatusRunning, domain.StatusStopped, domain.StatusMaintenance:
 	default:
 		writeError(w, http.StatusBadRequest, "Invalid status")
 		return

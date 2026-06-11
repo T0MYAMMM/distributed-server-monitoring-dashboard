@@ -1,10 +1,9 @@
-// Characterization test (Phase 0) pinning the JSON wire contract of the Server
-// DTO. This shape is shared by the frozen agent ingest payload
-// (POST /api/servers/update) and every REST/WebSocket response. Deployed agents
-// cannot be updated atomically, so a renamed or dropped tag is a breaking
-// change. If the Phase 1 move of this type changes the key set, this test must
-// fail.
-package models
+// Characterization test (Phase 0, relocated from internal/models in Phase 1)
+// pinning the JSON wire contract of the Server DTO. This shape is shared by the
+// frozen agent ingest payload (POST /api/servers/update) and every REST/
+// WebSocket response. Deployed agents cannot be updated atomically, so a
+// renamed or dropped tag is a breaking change.
+package domain
 
 import (
 	"encoding/json"
@@ -54,6 +53,17 @@ func TestClientJSONContract(t *testing.T) {
 		if _, ok := got[k]; !ok {
 			t.Errorf("Client JSON missing required key %q", k)
 		}
+	}
+}
+
+func TestStatusValid(t *testing.T) {
+	for _, s := range []Status{StatusRunning, StatusStopped, StatusMaintenance} {
+		if !s.Valid() {
+			t.Errorf("%q should be valid", s)
+		}
+	}
+	if Status("banana").Valid() {
+		t.Error("banana should be invalid")
 	}
 }
 
