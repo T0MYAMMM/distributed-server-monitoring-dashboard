@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optimize background gradient */
+body {
+  @apply bg-gray-50 dark:bg-gray-900;
+  min-height: 100vh;
+  position: relative;
+}
+
+body.dark {
+  @apply bg-gray-900;
+}
+
+@layer components {
+  .status-badge {
+    @apply px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center space-x-1.5
+    shadow-sm transition-all duration-200 hover:shadow backdrop-blur-sm;
+  }
+
+  .status-badge-running {
+    @apply bg-emerald-50/90 dark:bg-emerald-900/30 
+    text-emerald-700 dark:text-emerald-300
+    ring-1 ring-emerald-200/50 dark:ring-emerald-800/50
+    hover:bg-emerald-50 dark:hover:bg-emerald-900/40;
+  }
+
+  .status-badge-stopped {
+    @apply bg-red-50/90 dark:bg-red-900/30 
+    text-red-700 dark:text-red-300
+    ring-1 ring-red-200/50 dark:ring-red-800/50
+    hover:bg-red-50 dark:hover:bg-red-900/40;
+  }
+
+  .status-badge-maintenance {
+    @apply bg-amber-50/90 dark:bg-amber-900/30 
+    text-amber-700 dark:text-amber-300
+    ring-1 ring-amber-200/50 dark:ring-amber-800/50
+    hover:bg-amber-50 dark:hover:bg-amber-900/40;
+  }
+
+  .progress-bar-container {
+    @apply bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden;
+  }
+
+  .progress-bar {
+    @apply h-full rounded-full transition-all duration-300 ease-out;
+  }
+
+  .progress-bar-wrapper {
+    @apply flex items-center space-x-2 transition-colors duration-200 
+    cursor-pointer hover:opacity-95;
+  }
+
+  .metric-text {
+    @apply text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap font-medium
+    opacity-0 group-hover:opacity-100 transition-opacity duration-200;
+  }
+
+  .table-cell {
+    @apply px-3 py-3 sm:px-4 sm:py-3.5 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 
+    transition-colors duration-200;
+  }
+
+  .stat-card {
+    @apply bg-white/80 dark:bg-gray-800/80 rounded-lg p-4 sm:p-6 
+    ring-1 ring-gray-200/50 dark:ring-gray-700/50
+    hover:bg-white/90 dark:hover:bg-gray-800/90 
+    transition-colors duration-200;
+  }
+
+  .server-table {
+    @apply bg-white dark:bg-gray-800
+    ring-1 ring-gray-200 dark:ring-gray-700
+    overflow-hidden;
+  }
+
+  .table-row {
+    @apply border-b border-gray-100 dark:border-gray-700/50
+    hover:bg-gray-50/50 dark:hover:bg-gray-800/30 
+    transition-colors duration-200;
+  }
+
+  .metric-card {
+    @apply bg-white/80 dark:bg-gray-800/80 overflow-hidden 
+    shadow-lg rounded-xl p-6 border border-gray-200/50 
+    dark:border-gray-700/50 backdrop-blur-sm
+    hover:shadow-xl hover:scale-[1.02] 
+    transition-all duration-300;
+  }
+
+  .metric-value {
+    @apply text-3xl font-bold bg-clip-text text-transparent 
+    bg-gradient-to-r from-blue-600 to-blue-400
+    dark:from-blue-400 dark:to-blue-300;
+  }
+
+  .metric-label {
+    @apply mt-1 text-sm font-medium text-gray-600 dark:text-gray-400
+    transition-colors duration-200;
+  }
+
+  .network-stats {
+    @apply flex flex-col space-y-0.5 text-xs font-medium;
+  }
+
+  .network-stat-item {
+    @apply flex items-center space-x-1.5 text-gray-600 dark:text-gray-400
+    transition-colors duration-200;
+  }
+
+  .network-icon {
+    @apply w-3 h-3;
+  }
+
+  .network-download {
+    @apply text-emerald-500 dark:text-emerald-400;
+  }
+
+  .network-upload {
+    @apply text-blue-500 dark:text-blue-400;
+  }
+
+  /* Mobile adaptation */
+  .mobile-table-container {
+    @apply -mx-2 sm:mx-0 overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-table {
+    @apply min-w-[800px] sm:w-full;
+  }
+
+  .mobile-table-wrapper {
+    @apply px-4 sm:px-0;
+  }
+
+  .table-row-hover {
+    @apply hover:bg-gray-50/80 dark:hover:bg-gray-800/50 
+    transition-all duration-200 cursor-pointer
+    hover:shadow-md hover:scale-[1.01];
+  }
+}
+
+/* Table hover effect */
+.table-hover tr:hover td {
+  @apply bg-gray-50/70 dark:bg-gray-800/70;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection text style */
+::selection {
+  @apply bg-blue-500/20;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100/50 dark:bg-gray-800/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300/80 dark:bg-gray-600/80 rounded-full
+  hover:bg-gray-400/80 dark:hover:bg-gray-500/80 transition-colors;
+}
+
+/* Remove or modify any styles that may affect global layout */
+body {
+  @apply bg-gray-50 dark:bg-gray-900;
+}
+
+.dashboard-container {
+  @apply min-h-screen;
+}
+
+/* Keep other necessary styles */
+
