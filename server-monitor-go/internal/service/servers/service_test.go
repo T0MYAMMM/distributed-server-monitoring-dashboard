@@ -15,8 +15,9 @@ type fakeRepo struct {
 	servers      map[string]domain.Server
 	updateOld    domain.Status
 	updateChange bool
-	clientExists bool
-	staleNames   []string
+	clientExists    bool
+	staleNames      []string
+	unknownRecorded int
 }
 
 func newFakeRepo() *fakeRepo {
@@ -48,6 +49,11 @@ func (f *fakeRepo) AddClient(name string) error                      { return ni
 func (f *fakeRepo) ClientExists(name string) (bool, error)           { return f.clientExists, nil }
 func (f *fakeRepo) ListClients() ([]domain.Client, error)            { return nil, nil }
 func (f *fakeRepo) MarkStaleStopped(d time.Duration) ([]string, error) { return f.staleNames, nil }
+func (f *fakeRepo) RecordUnknownAgent(name, remoteAddr string, when time.Time) error {
+	f.unknownRecorded++
+	return nil
+}
+func (f *fakeRepo) ListUnknownAgents() ([]domain.UnknownAgent, error) { return nil, nil }
 
 func TestIngest(t *testing.T) {
 	tests := []struct {

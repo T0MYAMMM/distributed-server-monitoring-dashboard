@@ -82,6 +82,18 @@ var migrations = []migration{
 			)`,
 		},
 	},
+	{
+		version: 4,
+		name:    "unknown agents (rejected ingest observability)",
+		stmts: []string{
+			`CREATE TABLE unknown_agents (
+				name TEXT PRIMARY KEY,
+				remote_addr TEXT DEFAULT '',
+				last_seen TEXT DEFAULT '',
+				count INTEGER DEFAULT 0
+			)`,
+		},
+	},
 }
 
 // legacyBaselineVersion is the schema version produced by the pre-versioning

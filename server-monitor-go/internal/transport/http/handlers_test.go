@@ -398,6 +398,33 @@ func TestMetricsEndpoints(t *testing.T) {
 	}
 }
 
+// TestUnknownAgents covers B2: a rejected report is recorded and surfaced via
+// the JWT-protected admin endpoint.
+func TestUnknownAgents(t *testing.T) {
+	srv, _, token := setupAPI(t)
+
+	// Two rejected reports under the same unknown name.
+	do(t, http.MethodPost, srv.URL+"/api/servers/update", domain.Server{Name: "mistyped"}, "")
+	do(t, http.MethodPost, srv.URL+"/api/servers/update", domain.Server{Name: "mistyped"}, "")
+
+	// Endpoint requires auth.
+	if resp, _ := do(t, http.MethodGet, srv.URL+"/api/v1/admin/unknown-agents", nil, ""); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unknown-agents without token: got %d want 401", resp.StatusCode)
+	}
+
+	resp, body := do(t, http.MethodGet, srv.URL+"/api/v1/admin/unknown-agents", nil, token)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unknown-agents: %d", resp.StatusCode)
+	}
+	var agents []domain.UnknownAgent
+	if err := json.Unmarshal(body, &agents); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(agents) != 1 || agents[0].Name != "mistyped" || agents[0].Count != 2 {
+		t.Errorf("agents = %+v want one 'mistyped' with count 2", agents)
+	}
+}
+
 func TestWebSocketSnapshotAndBroadcast(t *testing.T) {
 	srv, _, _ := setupAPI(t)
 	registerClient(t, srv.URL, "web-1")
