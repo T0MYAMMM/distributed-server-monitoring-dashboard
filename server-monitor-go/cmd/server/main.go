@@ -20,8 +20,10 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/config"
 	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	logssvc "github.com/thomasstefen/server-monitor/internal/service/logs"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
+	"github.com/thomasstefen/server-monitor/internal/storage/postgres"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 	httpapi "github.com/thomasstefen/server-monitor/internal/transport/http"
 	"github.com/thomasstefen/server-monitor/internal/transport/ws"
@@ -61,7 +63,25 @@ func main() {
 		func() { handlers.Broadcast() }, logger)
 	serversService.SetAlertSink(alertsService)
 
-	handlers = httpapi.New(serversService, authService, metricsService, alertsService, hub, cfg.AgentsDir, logger)
+	// External log store (Postgres, e.g. the home-db server). Optional: when
+	// LOG_DATABASE_URL is unset, the logs feature is disabled and the core
+	// monitoring stays entirely on the hub's SQLite.
+	var logStore logssvc.Store
+	if cfg.LogDatabaseURL != "" {
+		openCtx, openCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ps, err := postgres.Open(openCtx, cfg.LogDatabaseURL)
+		openCancel()
+		if err != nil {
+			logger.Error("log database unavailable; logs disabled", "err", err)
+		} else {
+			logStore = ps
+			defer ps.Close()
+			logger.Info("log database connected")
+		}
+	}
+	logsService := logssvc.New(logStore, logger)
+
+	handlers = httpapi.New(serversService, authService, metricsService, alertsService, logsService, hub, cfg.AgentsDir, logger)
 
 	// Background jobs; cancelled on shutdown.
 	ctx, cancel := context.WithCancel(context.Background())

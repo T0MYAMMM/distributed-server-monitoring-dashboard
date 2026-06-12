@@ -25,6 +25,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	logssvc "github.com/thomasstefen/server-monitor/internal/service/logs"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
@@ -55,6 +56,7 @@ func setupAPI(t *testing.T) (srv *httptest.Server, st *sqlite.Store, token strin
 		authsvc.New(st, au),
 		metricssvc.New(st, metricssvc.SystemClock{}, slog.Default()),
 		alertsSvc,
+		logssvc.New(nil, slog.Default()), // logs disabled in handler tests
 		ws.New(), "", slog.Default(),
 	)
 	srv = httptest.NewServer(h.Handler(slog.Default()))

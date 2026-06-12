@@ -172,6 +172,10 @@ func (s *Service) AddClient(name string) error {
 // ListClients returns the allow-list entries.
 func (s *Service) ListClients() ([]domain.Client, error) { return s.repo.ListClients() }
 
+// IsAllowed reports whether a name is on the allow-list (used to gate log
+// ingest the same way metrics ingest is gated).
+func (s *Service) IsAllowed(name string) (bool, error) { return s.repo.IsClientAllowed(name) }
+
 // RecordUnknownAgent notes a rejected ingest for admin observability.
 func (s *Service) RecordUnknownAgent(name, remoteAddr string) error {
 	return s.repo.RecordUnknownAgent(name, remoteAddr, s.clock.Now())
