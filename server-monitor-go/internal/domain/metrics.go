@@ -15,11 +15,11 @@ func ServerID(name string) string {
 // MetricSample is one point of time-series telemetry for a server. Ts is unix
 // seconds (UTC), which keeps range queries and bucketing simple integer math.
 type MetricSample struct {
-	Ts        int64   `json:"ts"`
-	CPU       float64 `json:"cpu"`
-	Memory    float64 `json:"memory"`
-	Disk      float64 `json:"disk"`
-	NetworkIn float64 `json:"network_in"`
+	Ts         int64   `json:"ts"`
+	CPU        float64 `json:"cpu"`
+	Memory     float64 `json:"memory"`
+	Disk       float64 `json:"disk"`
+	NetworkIn  float64 `json:"network_in"`
 	NetworkOut float64 `json:"network_out"`
 }
 
