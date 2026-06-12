@@ -20,11 +20,14 @@ internal/
                  ErrInvalidInput). No external dependencies.
   config/        Env parsing + defaults; JWT secret persistence. One Load().
   storage/
-    sqlite/      The only persistence implementation (modernc.org/sqlite,
-                 pure Go, no cgo). Owns the schema via an ordered, versioned
-                 schema_migrations runner. A single Store satisfies the narrow
-                 repository interfaces each service defines, because some
-                 operations (AddClient, DeleteServer) span tables transactionally.
+    sqlite/      The core persistence (modernc.org/sqlite, pure Go, no cgo).
+                 Owns the schema via an ordered, versioned schema_migrations
+                 runner. A single Store satisfies the narrow repository
+                 interfaces each service defines, because some operations
+                 (AddClient, DeleteServer) span tables transactionally.
+    postgres/    Optional external log store (pgx, pure Go) for high-volume
+                 logs, kept off the hub's SQLite. Built only when
+                 LOG_DATABASE_URL is set; see docs/logs.md.
   service/
     servers/     Lifecycle, ingest accept/reject, ordering, staleness sweep.
                  Injects a Clock (testable time) and an optional AlertSink.
@@ -32,6 +35,8 @@ internal/
     metrics/     History writes, downsampling, fleet summary, rollup/prune
                  compaction. Injects a Clock.
     alerts/      Status/threshold alert emission + a pluggable Notifier.
+    logs/        Log ingest + query over the external store (enabled only when
+                 a log database is configured).
   transport/
     http/        Thin handlers (decode -> service -> encode), a route table
                  mounting legacy /api and canonical /api/v1, and one error
