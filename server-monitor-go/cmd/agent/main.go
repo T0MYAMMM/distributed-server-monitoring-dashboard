@@ -19,14 +19,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thomasstefen/server-monitor/internal/logtail"
 	"github.com/thomasstefen/server-monitor/internal/metrics"
 )
 
 // agentConfig holds resolved runtime settings.
 type agentConfig struct {
-	nodeName string
-	endpoint string
-	interval time.Duration
+	nodeName   string
+	serverBase string
+	endpoint   string
+	interval   time.Duration
+	logPaths   []string
 }
 
 func main() {
@@ -37,12 +40,16 @@ func main() {
 	name := flag.String("name", hostname, "node name (must match the client registered in the dashboard)")
 	server := flag.String("server", envOr("MONITOR_SERVER", "http://localhost:5000"), "backend base URL")
 	interval := flag.Duration("interval", 2*time.Second, "reporting interval")
+	logs := flag.String("logs", envOr("MONITOR_LOGS", ""), "comma-separated log file paths to tail and ship to the hub")
 	flag.Parse()
 
+	base := strings.TrimRight(*server, "/")
 	cfg := agentConfig{
-		nodeName: strings.Trim(strings.TrimSpace(*name), `"'`),
-		endpoint: strings.TrimRight(*server, "/") + "/api/servers/update",
-		interval: *interval,
+		nodeName:   strings.Trim(strings.TrimSpace(*name), `"'`),
+		serverBase: base,
+		endpoint:   base + "/api/servers/update",
+		interval:   *interval,
+		logPaths:   splitPaths(*logs),
 	}
 
 	// runService dispatches to the OS-appropriate entry point (a plain
@@ -50,9 +57,25 @@ func main() {
 	runService(cfg)
 }
 
-// reportLoop samples and reports metrics until ctx is cancelled.
+// splitPaths parses a comma-separated path list, trimming blanks.
+func splitPaths(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// reportLoop samples and reports metrics until ctx is cancelled. When log paths
+// are configured it also runs the log tailer alongside.
 func reportLoop(ctx context.Context, cfg agentConfig) {
 	log.Printf("node=%q server=%s interval=%s", cfg.nodeName, cfg.endpoint, cfg.interval)
+
+	if len(cfg.logPaths) > 0 {
+		go logtail.New(cfg.serverBase, cfg.nodeName, cfg.logPaths).Run(ctx, cfg.interval)
+	}
 
 	collector := metrics.NewCollector(cfg.nodeName)
 	client := &http.Client{Timeout: 8 * time.Second}
