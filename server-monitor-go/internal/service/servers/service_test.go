@@ -11,10 +11,10 @@ import (
 // fakeRepo is an in-memory Repo for service unit tests. Behavior is controlled
 // by per-method hooks so each test sets only what it needs.
 type fakeRepo struct {
-	allowed      map[string]bool
-	servers      map[string]domain.Server
-	updateOld    domain.Status
-	updateChange bool
+	allowed         map[string]bool
+	servers         map[string]domain.Server
+	updateOld       domain.Status
+	updateChange    bool
 	clientExists    bool
 	staleNames      []string
 	unknownRecorded int
@@ -43,11 +43,11 @@ func (f *fakeRepo) SetStatus(id string, status domain.Status) error {
 	f.servers[id] = sv
 	return nil
 }
-func (f *fakeRepo) SetOrder(id string, order int) error              { return nil }
-func (f *fakeRepo) Heartbeat(id string) error                        { return nil }
-func (f *fakeRepo) AddClient(name string) error                      { return nil }
-func (f *fakeRepo) ClientExists(name string) (bool, error)           { return f.clientExists, nil }
-func (f *fakeRepo) ListClients() ([]domain.Client, error)            { return nil, nil }
+func (f *fakeRepo) SetOrder(id string, order int) error                { return nil }
+func (f *fakeRepo) Heartbeat(id string) error                          { return nil }
+func (f *fakeRepo) AddClient(name string) error                        { return nil }
+func (f *fakeRepo) ClientExists(name string) (bool, error)             { return f.clientExists, nil }
+func (f *fakeRepo) ListClients() ([]domain.Client, error)              { return nil, nil }
 func (f *fakeRepo) MarkStaleStopped(d time.Duration) ([]string, error) { return f.staleNames, nil }
 func (f *fakeRepo) RecordUnknownAgent(name, remoteAddr string, when time.Time) error {
 	f.unknownRecorded++

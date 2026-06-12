@@ -1,0 +1,27 @@
+# golangci-lint configuration. Run in CI with: golangci-lint run ./...
+# Locally this environment cannot fetch the linter's transitive deps, so the
+# repo relies on `go vet` + `gofmt -l` (both clean); CI runs the full set below.
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - bodyclose
+
+issues:
+  exclude-rules:
+    # Test files may ignore some errors for brevity.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - bodyclose
