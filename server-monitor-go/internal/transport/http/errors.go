@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/thomasstefen/server-monitor/internal/domain"
 )
@@ -18,11 +19,37 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-// writeError emits the flat legacy error body {"error": msg}. The /api/v1
-// surface keeps this shape during the restructure; the nested
-// {"error":{"code","message"}} envelope lands with the v1-consuming frontend.
-func writeError(w http.ResponseWriter, status int, msg string) {
+// writeError renders an error in the shape appropriate to the surface: the
+// canonical /api/v1 paths use the nested {"error":{"code","message"}} envelope;
+// legacy /api/... paths keep the flat {"error":"message"} shape that existing
+// clients depend on.
+func writeError(w http.ResponseWriter, r *http.Request, status int, msg string) {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+		writeJSON(w, status, map[string]any{
+			"error": map[string]string{"code": codeForStatus(status), "message": msg},
+		})
+		return
+	}
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func codeForStatus(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "bad_request"
+	case http.StatusUnauthorized:
+		return "unauthorized"
+	case http.StatusForbidden:
+		return "forbidden"
+	case http.StatusNotFound:
+		return "not_found"
+	case http.StatusConflict:
+		return "conflict"
+	case http.StatusInternalServerError:
+		return "internal"
+	default:
+		return "error"
+	}
 }
 
 // mapError maps a domain sentinel error to an HTTP status and message,
@@ -46,10 +73,10 @@ func mapError(err error) (int, string) {
 }
 
 // fail renders err via the single mapping point, logging internal errors.
-func (h *Handlers) fail(w http.ResponseWriter, err error) {
+func (h *Handlers) fail(w http.ResponseWriter, r *http.Request, err error) {
 	status, msg := mapError(err)
 	if status >= 500 {
 		h.log.Error("internal error", "err", err)
 	}
-	writeError(w, status, msg)
+	writeError(w, r, status, msg)
 }

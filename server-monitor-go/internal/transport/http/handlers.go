@@ -52,7 +52,7 @@ var upgrader = websocket.Upgrader{
 func (h *Handlers) listServers(w http.ResponseWriter, r *http.Request) {
 	list, err := h.servers.List()
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	if !h.isAuthed(r) {
@@ -64,7 +64,7 @@ func (h *Handlers) listServers(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) getServer(w http.ResponseWriter, r *http.Request) {
 	sv, err := h.servers.Get(r.PathValue("id"))
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	if !h.isAuthed(r) {
@@ -78,7 +78,7 @@ func (h *Handlers) getServer(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) serverMetrics(w http.ResponseWriter, r *http.Request) {
 	series, err := h.metrics.History(r.PathValue("id"), r.URL.Query().Get("range"))
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, series)
@@ -89,7 +89,7 @@ func (h *Handlers) serverMetrics(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) metricsSummary(w http.ResponseWriter, r *http.Request) {
 	summary, err := h.metrics.Summary(r.URL.Query().Get("range"))
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, summary)
@@ -100,7 +100,7 @@ func (h *Handlers) metricsSummary(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) updateServer(w http.ResponseWriter, r *http.Request) {
 	var in domain.Server
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid data")
+		writeError(w, r, http.StatusBadRequest, "Invalid data")
 		return
 	}
 	if err := h.servers.Ingest(in); err != nil {
@@ -110,7 +110,7 @@ func (h *Handlers) updateServer(w http.ResponseWriter, r *http.Request) {
 				h.log.Error("record unknown agent", "err", rerr)
 			}
 		}
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	// Record time-series history for charts/trends; non-fatal on failure.
@@ -125,7 +125,7 @@ func (h *Handlers) updateServer(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) deleteServer(w http.ResponseWriter, r *http.Request) {
 	if err := h.servers.Delete(r.PathValue("id")); err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	h.broadcast()
@@ -137,12 +137,12 @@ func (h *Handlers) setStatus(w http.ResponseWriter, r *http.Request) {
 		Status domain.Status `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid data")
+		writeError(w, r, http.StatusBadRequest, "Invalid data")
 		return
 	}
 	sv, err := h.servers.ForceStatus(r.PathValue("id"), body.Status)
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	h.broadcast()
@@ -154,11 +154,11 @@ func (h *Handlers) setOrder(w http.ResponseWriter, r *http.Request) {
 		OrderIndex *int `json:"order_index"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.OrderIndex == nil {
-		writeError(w, http.StatusBadRequest, "Order index is required")
+		writeError(w, r, http.StatusBadRequest, "Order index is required")
 		return
 	}
 	if err := h.servers.SetOrder(r.PathValue("id"), *body.OrderIndex); err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	h.broadcast()
@@ -167,7 +167,7 @@ func (h *Handlers) setOrder(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) heartbeat(w http.ResponseWriter, r *http.Request) {
 	if err := h.servers.Heartbeat(r.PathValue("id")); err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	h.broadcast()
@@ -179,7 +179,7 @@ func (h *Handlers) heartbeat(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) listClients(w http.ResponseWriter, r *http.Request) {
 	clients, err := h.servers.ListClients()
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, clients)
@@ -190,19 +190,19 @@ func (h *Handlers) addClient(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "Client name is required")
+		writeError(w, r, http.StatusBadRequest, "Client name is required")
 		return
 	}
 	if err := h.servers.AddClient(body.Name); err != nil {
 		if err == domain.ErrInvalidInput {
-			writeError(w, http.StatusBadRequest, "Client name is required")
+			writeError(w, r, http.StatusBadRequest, "Client name is required")
 			return
 		}
 		if err == domain.ErrConflict {
-			writeError(w, http.StatusBadRequest, "Client already exists")
+			writeError(w, r, http.StatusBadRequest, "Client already exists")
 			return
 		}
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	h.broadcast()
@@ -214,7 +214,7 @@ func (h *Handlers) addClient(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) unknownAgents(w http.ResponseWriter, r *http.Request) {
 	agents, err := h.servers.UnknownAgents()
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, agents)
@@ -233,7 +233,7 @@ func (h *Handlers) listAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := h.alerts.List(r.URL.Query().Get("severity"), limit)
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -243,11 +243,11 @@ func (h *Handlers) listAlerts(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) acknowledgeAlert(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid alert id")
+		writeError(w, r, http.StatusBadRequest, "Invalid alert id")
 		return
 	}
 	if err := h.alerts.Acknowledge(id); err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	h.broadcast()
@@ -259,7 +259,7 @@ func (h *Handlers) acknowledgeAlert(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) authStatus(w http.ResponseWriter, r *http.Request) {
 	init, err := h.auth.Initialized()
 	if err != nil {
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"initialized": init})
@@ -270,19 +270,19 @@ func (h *Handlers) initialize(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "Password is required")
+		writeError(w, r, http.StatusBadRequest, "Password is required")
 		return
 	}
 	if err := h.auth.Initialize(body.Password); err != nil {
 		if err == domain.ErrConflict {
-			writeError(w, http.StatusBadRequest, "Already initialized")
+			writeError(w, r, http.StatusBadRequest, "Already initialized")
 			return
 		}
 		if err == domain.ErrInvalidInput {
-			writeError(w, http.StatusBadRequest, "Password is required")
+			writeError(w, r, http.StatusBadRequest, "Password is required")
 			return
 		}
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
@@ -293,20 +293,20 @@ func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "Password is required")
+		writeError(w, r, http.StatusBadRequest, "Password is required")
 		return
 	}
 	token, err := h.auth.Login(body.Password)
 	if err != nil {
 		if err == domain.ErrInvalidInput {
-			writeError(w, http.StatusBadRequest, "Password is required")
+			writeError(w, r, http.StatusBadRequest, "Password is required")
 			return
 		}
 		if err == domain.ErrUnauthorized {
-			writeError(w, http.StatusUnauthorized, "Invalid password")
+			writeError(w, r, http.StatusUnauthorized, "Invalid password")
 			return
 		}
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"token": token})
@@ -318,19 +318,19 @@ func (h *Handlers) resetPassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"newPassword"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "Both old and new passwords are required")
+		writeError(w, r, http.StatusBadRequest, "Both old and new passwords are required")
 		return
 	}
 	if err := h.auth.ResetPassword(body.OldPassword, body.NewPassword); err != nil {
 		if err == domain.ErrInvalidInput {
-			writeError(w, http.StatusBadRequest, "Both old and new passwords are required")
+			writeError(w, r, http.StatusBadRequest, "Both old and new passwords are required")
 			return
 		}
 		if err == domain.ErrUnauthorized {
-			writeError(w, http.StatusUnauthorized, "Current password is incorrect")
+			writeError(w, r, http.StatusUnauthorized, "Current password is incorrect")
 			return
 		}
-		h.fail(w, err)
+		h.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
@@ -346,16 +346,20 @@ func (h *Handlers) dashboardWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	authed := h.wsAuthed(r)
 	if list, err := h.servers.List(); err == nil {
-		masking.All(list) // dashboard sockets are unauthenticated; mask IPs
+		if !authed {
+			masking.All(list) // anonymous sockets get masked addresses
+		}
 		if b, err := json.Marshal(list); err == nil {
 			_ = conn.WriteMessage(websocket.TextMessage, b)
 		}
 	}
-	h.hub.Add(conn) // blocks until the connection closes
+	h.hub.Add(conn, authed) // blocks until the connection closes
 }
 
-// broadcast pushes the current (IP-masked) server list to dashboards.
+// broadcast pushes the current server list to dashboards: a masked frame to
+// anonymous sockets and the full frame to authenticated ones.
 func (h *Handlers) broadcast() {
 	if h.hub.Count() == 0 {
 		return
@@ -365,9 +369,15 @@ func (h *Handlers) broadcast() {
 		h.log.Error("broadcast snapshot", "err", err)
 		return
 	}
-	masking.All(list)
-	if b, err := json.Marshal(list); err == nil {
-		h.hub.Broadcast(b)
+	full, ferr := json.Marshal(list)
+
+	masked := make([]domain.Server, len(list))
+	copy(masked, list)
+	masking.All(masked)
+	maskedBytes, merr := json.Marshal(masked)
+
+	if ferr == nil && merr == nil {
+		h.hub.Broadcast(maskedBytes, full)
 	}
 }
 
@@ -378,4 +388,15 @@ func (h *Handlers) Broadcast() { h.broadcast() }
 // isAuthed reports whether the request carries a valid admin bearer token.
 func (h *Handlers) isAuthed(r *http.Request) bool {
 	return h.auth.ValidToken(middleware.BearerToken(r))
+}
+
+// wsAuthed reports whether a WebSocket upgrade is authenticated. Browsers cannot
+// set an Authorization header on a WebSocket, so the token may also arrive as a
+// ?token= query parameter.
+func (h *Handlers) wsAuthed(r *http.Request) bool {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = middleware.BearerToken(r)
+	}
+	return h.auth.ValidToken(token)
 }

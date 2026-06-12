@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	maxPoints       = 500              // cap per series; downsample server-side
-	rawRetention    = 48 * 3600        // keep raw samples ~48h
-	rollupRetention = 30 * 24 * 3600   // keep 5-minute rollups ~30 days
-	rollupBucket    = 300              // 5 minutes
+	maxPoints       = 500            // cap per series; downsample server-side
+	rawRetention    = 48 * 3600      // keep raw samples ~48h
+	rollupRetention = 30 * 24 * 3600 // keep 5-minute rollups ~30 days
+	rollupBucket    = 300            // 5 minutes
 )
 
 // Repo is the metrics persistence the service needs; sqlite.Store satisfies it.
