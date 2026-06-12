@@ -10,15 +10,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Hub tracks connected dashboard sockets and broadcasts messages to them.
+// Hub tracks connected dashboard sockets and broadcasts messages to them. Each
+// connection carries its auth state so admin sockets receive unmasked frames
+// while anonymous sockets receive masked ones.
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*client]struct{}
 }
 
 type client struct {
-	conn *websocket.Conn
-	send chan []byte
+	conn   *websocket.Conn
+	send   chan []byte
+	authed bool
 }
 
 // New creates an empty Hub.
@@ -26,11 +29,13 @@ func New() *Hub {
 	return &Hub{clients: make(map[*client]struct{})}
 }
 
-// Add registers a websocket connection and starts its writer pump. It blocks
-// reading control frames until the connection closes, then deregisters it, so
-// callers should run it for the lifetime of the request handler.
-func (h *Hub) Add(conn *websocket.Conn) {
-	c := &client{conn: conn, send: make(chan []byte, 16)}
+// Add registers a websocket connection and starts its writer pump. authed marks
+// whether the connection presented a valid admin token (it then receives
+// unmasked broadcasts). It blocks reading control frames until the connection
+// closes, then deregisters it, so callers should run it for the lifetime of the
+// request handler.
+func (h *Hub) Add(conn *websocket.Conn, authed bool) {
+	c := &client{conn: conn, send: make(chan []byte, 16), authed: authed}
 
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
@@ -66,12 +71,17 @@ func (h *Hub) remove(c *client) {
 	c.conn.Close()
 }
 
-// Broadcast sends msg to every connected dashboard. Slow clients that cannot
-// keep up are dropped rather than blocking the broadcaster.
-func (h *Hub) Broadcast(msg []byte) {
+// Broadcast sends the masked frame to anonymous dashboards and the full
+// (unmasked) frame to authenticated ones. Slow clients that cannot keep up are
+// dropped rather than blocking the broadcaster.
+func (h *Hub) Broadcast(masked, full []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for c := range h.clients {
+		msg := masked
+		if c.authed {
+			msg = full
+		}
 		select {
 		case c.send <- msg:
 		default:

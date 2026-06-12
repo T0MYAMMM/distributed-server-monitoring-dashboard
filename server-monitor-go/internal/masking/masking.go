@@ -2,9 +2,10 @@
 // policy is consistent across REST responses and WebSocket pushes, and so it
 // can be evolved in a single edit.
 //
-// Current policy (as-built): anonymous viewers see a masked public IP address;
-// hostname and Tailscale IP are not masked. Admin (valid JWT) viewers see real
-// values.
+// Policy: anonymous viewers never see a node's real network addresses — both
+// the public IP and the Tailscale IP are masked. The OS hostname is not masked
+// (it only identifies a node within the tailnet). Admin (valid JWT) viewers see
+// real values, in REST responses and in live WebSocket frames alike.
 package masking
 
 import "github.com/thomasstefen/server-monitor/internal/domain"
@@ -12,9 +13,10 @@ import "github.com/thomasstefen/server-monitor/internal/domain"
 // MaskedIP is the placeholder shown to unauthenticated viewers.
 const MaskedIP = "***.***.***.**"
 
-// One masks the sensitive fields of a single server in place.
+// One masks the sensitive address fields of a single server in place.
 func One(sv *domain.Server) {
 	sv.IPAddress = MaskedIP
+	sv.TailscaleIP = MaskedIP
 }
 
 // All masks every server in the slice in place and returns it for convenience.
