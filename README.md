@@ -57,7 +57,8 @@ no runtime dependencies); the dashboard is **Next.js**. Built to run over a
 Architecture and contributor docs:
 [`docs/architecture.md`](docs/architecture.md) (backend layering + frontend
 conventions) · [`docs/adding-a-feature.md`](docs/adding-a-feature.md)
-(step-by-step checklist) · [`docs/PRD.md`](docs/PRD.md) (product requirements).
+(step-by-step checklist) · [`docs/logs.md`](docs/logs.md) (per-VM log
+monitoring setup) · [`docs/PRD.md`](docs/PRD.md) (product requirements).
 
 ## Quick start
 

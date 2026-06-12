@@ -59,6 +59,14 @@ func (s *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return h.Hijack()
 }
 
+// Flush delegates to the underlying ResponseWriter so Server-Sent Events (the
+// log tail stream) keep working through the logging wrapper.
+func (s *statusRecorder) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Logger logs method, path, status, duration, and request ID for each request.
 func Logger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

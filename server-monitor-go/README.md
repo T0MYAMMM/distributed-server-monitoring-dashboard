@@ -232,9 +232,12 @@ All via environment variables (see `internal/config`):
 | `STALE_AFTER_SECONDS` | `30` | Silence before a `running` server is marked `stopped`. |
 | `ALERT_WEBHOOK_URL` | _(empty)_ | Generic webhook for alert JSON. Empty ⇒ alert delivery disabled. |
 | `ALERT_DISK_THRESHOLD` | `90` | Disk-usage percent that raises a threshold alert. `0` ⇒ disabled. |
+| `LOG_DATABASE_URL` | _(empty)_ | External Postgres URL for per-VM log storage (e.g. home-db). Empty ⇒ logs feature disabled; core stays SQLite. See [docs/logs.md](../docs/logs.md). |
 
 Agent flags: `--name` (must match a registered client), `--server` (hub base
-URL, or `MONITOR_SERVER` env), `--interval` (default `2s`).
+URL, or `MONITOR_SERVER` env), `--interval` (default `2s`), `--logs`
+(comma-separated log file paths to tail and ship, or `MONITOR_LOGS` env; see
+[docs/logs.md](../docs/logs.md)).
 
 ## API contract
 
@@ -276,6 +279,9 @@ New in v1 (no legacy alias):
 | GET | `/api/v1/alerts?severity=&limit=` | — | Recent alerts (status changes + threshold breaches). |
 | POST | `/api/v1/alerts/{id}/acknowledge` | JWT | Acknowledge an alert. |
 | GET | `/api/v1/admin/unknown-agents` | JWT | Recently rejected (unregistered) agent reports. |
+| POST | `/api/v1/logs` | allow-list | Agent log ingest (external DB; 503 if disabled). |
+| GET | `/api/v1/servers/{id}/logs?level=&q=&since=&until=&file=&limit=` | — | Query a server's logs. |
+| GET | `/api/v1/servers/{id}/logs/stream?after=` | — | Live tail a server's logs (SSE). |
 
 Unversioned:
 

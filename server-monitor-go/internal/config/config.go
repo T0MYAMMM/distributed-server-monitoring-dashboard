@@ -30,6 +30,10 @@ type Config struct {
 	// AlertDiskThreshold is the disk-usage percent that raises a threshold
 	// alert. 0 disables threshold alerts.
 	AlertDiskThreshold float64
+	// LogDatabaseURL is the external Postgres URL for the high-volume log store
+	// (e.g. the home-db server). Empty disables the logs feature; the core
+	// monitoring stays on the hub's SQLite regardless.
+	LogDatabaseURL string
 }
 
 // Load builds a Config from the environment, generating and persisting a JWT
@@ -47,6 +51,7 @@ func Load() (*Config, error) {
 		AgentsDir:          getenv("AGENTS_DIR", "./dist"),
 		AlertWebhookURL:    os.Getenv("ALERT_WEBHOOK_URL"),
 		AlertDiskThreshold: getenvFloat("ALERT_DISK_THRESHOLD", 90),
+		LogDatabaseURL:     os.Getenv("LOG_DATABASE_URL"),
 	}
 
 	secret, err := loadOrCreateSecret(dataDir)
