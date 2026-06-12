@@ -60,10 +60,27 @@ func TestInsertAndQuery(t *testing.T) {
 		t.Errorf("level filter = %+v want one ERROR/db", errs)
 	}
 
-	// Search filter.
+	// Module filter.
+	dbOnly, _ := st.QueryLogs(ctx, domain.LogQuery{ServerID: id, Module: "db"})
+	if len(dbOnly) != 1 || dbOnly[0].Module != "db" {
+		t.Errorf("module filter = %+v want one db line", dbOnly)
+	}
+
+	// Distinct modules for the per-node dropdown.
+	mods, _ := st.Modules(ctx, id)
+	if len(mods) != 2 || mods[0] != "app" || mods[1] != "db" {
+		t.Errorf("modules = %v want [app db]", mods)
+	}
+
+	// Search filter greps the message only (not the module): "db" is a module
+	// name but appears in no message, so it returns nothing.
+	if found, _ := st.QueryLogs(ctx, domain.LogQuery{ServerID: id, Search: "db"}); len(found) != 0 {
+		t.Errorf("search 'db' = %d want 0 (message-only grep)", len(found))
+	}
+	// A real message keyword matches.
 	found, _ := st.QueryLogs(ctx, domain.LogQuery{ServerID: id, Search: "refused"})
 	if len(found) != 1 {
-		t.Errorf("search = %d want 1", len(found))
+		t.Errorf("search 'refused' = %d want 1", len(found))
 	}
 
 	// Tail: rows after the first id, ascending.

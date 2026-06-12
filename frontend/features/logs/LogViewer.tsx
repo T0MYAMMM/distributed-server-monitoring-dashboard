@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ApiError, getServerLogs, logsStreamUrl } from "@/lib/api/client";
+import { ApiError, getServerLogModules, getServerLogs, logsStreamUrl } from "@/lib/api/client";
 import { useServers } from "@/lib/hooks/useServers";
 import type { LogLine } from "@/lib/api/types";
 
@@ -32,6 +32,8 @@ export function LogViewer() {
   const { data: servers } = useServers();
   const [serverId, setServerId] = useState("");
   const [level, setLevel] = useState("");
+  const [module, setModule] = useState("");
+  const [modules, setModules] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [live, setLive] = useState(false);
   const [lines, setLines] = useState<LogLine[]>([]);
@@ -44,6 +46,20 @@ export function LogViewer() {
     if (!serverId && servers && servers.length > 0) setServerId(servers[0].id);
   }, [servers, serverId]);
 
+  // Load the per-node module list when the server changes (modules differ per
+  // node); reset the module filter so a stale selection isn't carried over.
+  useEffect(() => {
+    if (!serverId) return;
+    setModule("");
+    let cancelled = false;
+    getServerLogModules(serverId)
+      .then((m) => !cancelled && setModules(m))
+      .catch(() => !cancelled && setModules([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [serverId]);
+
   useEffect(() => {
     if (!serverId) return;
     let cancelled = false;
@@ -55,7 +71,7 @@ export function LogViewer() {
     const loadOnce = async () => {
       setLoading(true);
       try {
-        const data = await getServerLogs(serverId, { level, q, limit: 500 });
+        const data = await getServerLogs(serverId, { level, module, q, limit: 500 });
         if (cancelled) return;
         const chrono = [...data].reverse(); // oldest first for a terminal feel
         lastId.current = chrono.length ? chrono[chrono.length - 1].id : 0;
@@ -71,7 +87,7 @@ export function LogViewer() {
       await loadOnce();
       if (cancelled || disabled) return;
       if (live) {
-        es = new EventSource(logsStreamUrl(serverId, lastId.current));
+        es = new EventSource(logsStreamUrl(serverId, lastId.current, { level, module, q }));
         es.onmessage = (ev) => {
           try {
             const l = JSON.parse(ev.data) as LogLine;
@@ -92,7 +108,7 @@ export function LogViewer() {
       if (interval) clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId, level, q, live]);
+  }, [serverId, level, module, q, live]);
 
   useEffect(() => {
     if (live && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -127,12 +143,26 @@ export function LogViewer() {
               </option>
             ))}
           </select>
+          <select
+            value={module}
+            onChange={(e) => setModule(e.target.value)}
+            className="h-9 max-w-[200px] rounded-md border border-input bg-background px-2 text-sm"
+            aria-label="App / module"
+            disabled={modules.length === 0}
+          >
+            <option value="">{modules.length ? "All apps" : "No apps yet"}</option>
+            {modules.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
           <div className="relative min-w-[180px] flex-1">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search message or module…"
+              placeholder="Grep keywords in message…"
               className="h-9 pl-8"
             />
           </div>

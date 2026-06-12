@@ -17,6 +17,7 @@ import (
 type Store interface {
 	InsertLogs(ctx context.Context, serverID, server string, lines []domain.LogLine) error
 	QueryLogs(ctx context.Context, q domain.LogQuery) ([]domain.LogLine, error)
+	Modules(ctx context.Context, serverID string) ([]string, error)
 	Close()
 }
 
@@ -55,4 +56,9 @@ func (s *Service) Ingest(ctx context.Context, server string, lines []domain.LogL
 // Query returns log lines matching the filter.
 func (s *Service) Query(ctx context.Context, q domain.LogQuery) ([]domain.LogLine, error) {
 	return s.store.QueryLogs(ctx, q)
+}
+
+// Modules returns the distinct module (app) names for a server.
+func (s *Service) Modules(ctx context.Context, serverID string) ([]string, error) {
+	return s.store.Modules(ctx, serverID)
 }

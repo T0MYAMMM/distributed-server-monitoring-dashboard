@@ -95,23 +95,36 @@ export const acknowledgeAlert = (id: number) =>
 // --- logs ---
 export interface LogFilter {
   level?: string;
+  module?: string;
   q?: string;
   since?: string;
   limit?: number;
 }
-export const getServerLogs = (id: string, opts: LogFilter = {}) => {
+function logParams(opts: LogFilter): URLSearchParams {
   const params = new URLSearchParams();
   if (opts.level) params.set("level", opts.level);
+  if (opts.module) params.set("module", opts.module);
   if (opts.q) params.set("q", opts.q);
   if (opts.since) params.set("since", opts.since);
   if (opts.limit) params.set("limit", String(opts.limit));
-  const qs = params.toString();
+  return params;
+}
+export const getServerLogs = (id: string, opts: LogFilter = {}) => {
+  const qs = logParams(opts).toString();
   return request<LogLine[]>(`/servers/${id}/logs${qs ? `?${qs}` : ""}`);
 };
 
-// logsStreamUrl is the SSE endpoint for live-tailing a server's logs.
-export const logsStreamUrl = (id: string, after: number) =>
-  `${V1}/servers/${id}/logs/stream?after=${after}`;
+// getServerLogModules lists the distinct app/module names for a server.
+export const getServerLogModules = (id: string) =>
+  request<string[]>(`/servers/${id}/logs/modules`);
+
+// logsStreamUrl is the SSE endpoint for live-tailing a server's logs, honoring
+// the same level/module/keyword filters as the static query.
+export const logsStreamUrl = (id: string, after: number, opts: LogFilter = {}) => {
+  const params = logParams(opts);
+  params.set("after", String(after));
+  return `${V1}/servers/${id}/logs/stream?${params.toString()}`;
+};
 
 // --- admin ---
 export const getUnknownAgents = () =>
