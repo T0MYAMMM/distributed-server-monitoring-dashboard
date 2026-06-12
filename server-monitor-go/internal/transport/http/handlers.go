@@ -346,16 +346,20 @@ func (h *Handlers) dashboardWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	authed := h.wsAuthed(r)
 	if list, err := h.servers.List(); err == nil {
-		masking.All(list) // dashboard sockets are unauthenticated; mask IPs
+		if !authed {
+			masking.All(list) // anonymous sockets get masked addresses
+		}
 		if b, err := json.Marshal(list); err == nil {
 			_ = conn.WriteMessage(websocket.TextMessage, b)
 		}
 	}
-	h.hub.Add(conn) // blocks until the connection closes
+	h.hub.Add(conn, authed) // blocks until the connection closes
 }
 
-// broadcast pushes the current (IP-masked) server list to dashboards.
+// broadcast pushes the current server list to dashboards: a masked frame to
+// anonymous sockets and the full frame to authenticated ones.
 func (h *Handlers) broadcast() {
 	if h.hub.Count() == 0 {
 		return
@@ -365,9 +369,15 @@ func (h *Handlers) broadcast() {
 		h.log.Error("broadcast snapshot", "err", err)
 		return
 	}
-	masking.All(list)
-	if b, err := json.Marshal(list); err == nil {
-		h.hub.Broadcast(b)
+	full, ferr := json.Marshal(list)
+
+	masked := make([]domain.Server, len(list))
+	copy(masked, list)
+	masking.All(masked)
+	maskedBytes, merr := json.Marshal(masked)
+
+	if ferr == nil && merr == nil {
+		h.hub.Broadcast(maskedBytes, full)
 	}
 }
 
@@ -378,4 +388,15 @@ func (h *Handlers) Broadcast() { h.broadcast() }
 // isAuthed reports whether the request carries a valid admin bearer token.
 func (h *Handlers) isAuthed(r *http.Request) bool {
 	return h.auth.ValidToken(middleware.BearerToken(r))
+}
+
+// wsAuthed reports whether a WebSocket upgrade is authenticated. Browsers cannot
+// set an Authorization header on a WebSocket, so the token may also arrive as a
+// ?token= query parameter.
+func (h *Handlers) wsAuthed(r *http.Request) bool {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = middleware.BearerToken(r)
+	}
+	return h.auth.ValidToken(token)
 }

@@ -146,23 +146,26 @@ func TestMaskingListAndGet(t *testing.T) {
 	}, "")
 	id := sqlite.ServerID("web-1")
 
-	// Anonymous: public ip masked.
+	// Anonymous: both public ip and tailscale ip are masked (decision D5);
+	// hostname is not masked since it only identifies a node within the tailnet.
 	anon := getServer(t, srv.URL, id, "")
 	if anon.IPAddress != "***.***.***.**" {
 		t.Errorf("anon ip = %q want masked", anon.IPAddress)
 	}
-	// CHARACTERIZATION OF CURRENT BEHAVIOR (decision D5 will flip these two):
-	// today tailscale_ip and hostname are NOT masked for anonymous viewers.
-	if anon.TailscaleIP != "100.64.0.5" {
-		t.Errorf("anon tailscale_ip = %q; current behavior is unmasked", anon.TailscaleIP)
+	if anon.TailscaleIP != "***.***.***.**" {
+		t.Errorf("anon tailscale_ip = %q want masked", anon.TailscaleIP)
 	}
 	if anon.Hostname != "web1.local" {
-		t.Errorf("anon hostname = %q; current behavior is unmasked", anon.Hostname)
+		t.Errorf("anon hostname = %q; hostname is not masked", anon.Hostname)
 	}
 
-	// Admin: real public ip visible.
-	if admin := getServer(t, srv.URL, id, token); admin.IPAddress != "203.0.113.7" {
+	// Admin: real public and tailscale IPs visible.
+	admin := getServer(t, srv.URL, id, token)
+	if admin.IPAddress != "203.0.113.7" {
 		t.Errorf("admin ip = %q want real", admin.IPAddress)
+	}
+	if admin.TailscaleIP != "100.64.0.5" {
+		t.Errorf("admin tailscale_ip = %q want real", admin.TailscaleIP)
 	}
 
 	// List endpoint masks the same way.
@@ -515,6 +518,47 @@ func TestWebSocketSnapshotAndBroadcast(t *testing.T) {
 	// WS frames are always masked, even though no auth is possible on the socket.
 	if pushed[0].IPAddress != "***.***.***.**" {
 		t.Errorf("ws ip = %q want masked", pushed[0].IPAddress)
+	}
+}
+
+// TestWebSocketAuthedUnmasked verifies the acceptance requirement that an admin
+// JWT reveals real IPs live over the WebSocket (token passed as a query param,
+// since browsers cannot set a WS Authorization header).
+func TestWebSocketAuthedUnmasked(t *testing.T) {
+	srv, _, token := setupAPI(t)
+	registerClient(t, srv.URL, "web-1")
+	do(t, http.MethodPost, srv.URL+"/api/servers/update",
+		domain.Server{Name: "web-1", IPAddress: "203.0.113.7", TailscaleIP: "100.64.0.5"}, "")
+
+	wsBase := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/ws/dashboard"
+
+	// Anonymous socket: masked.
+	readFirst := func(url string) domain.Server {
+		conn, _, err := websocket.DefaultDialer.Dial(url, http.Header{})
+		if err != nil {
+			t.Fatalf("ws dial: %v", err)
+		}
+		defer conn.Close()
+		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var snap []domain.Server
+		if err := json.Unmarshal(msg, &snap); err != nil || len(snap) == 0 {
+			t.Fatalf("decode snapshot: %v (len %d)", err, len(snap))
+		}
+		return snap[0]
+	}
+
+	anon := readFirst(wsBase)
+	if anon.IPAddress != "***.***.***.**" || anon.TailscaleIP != "***.***.***.**" {
+		t.Errorf("anon ws frame not masked: ip=%q tailscale=%q", anon.IPAddress, anon.TailscaleIP)
+	}
+
+	admin := readFirst(wsBase + "?token=" + token)
+	if admin.IPAddress != "203.0.113.7" || admin.TailscaleIP != "100.64.0.5" {
+		t.Errorf("admin ws frame should be unmasked: ip=%q tailscale=%q", admin.IPAddress, admin.TailscaleIP)
 	}
 }
 
