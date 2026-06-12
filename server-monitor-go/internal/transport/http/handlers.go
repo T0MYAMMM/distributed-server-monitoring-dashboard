@@ -17,6 +17,7 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/masking"
 	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	logssvc "github.com/thomasstefen/server-monitor/internal/service/logs"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
 	"github.com/thomasstefen/server-monitor/internal/transport/http/middleware"
@@ -29,18 +30,20 @@ type Handlers struct {
 	auth      *authsvc.Service
 	metrics   *metricssvc.Service
 	alerts    *alertssvc.Service
+	logs      *logssvc.Service
 	hub       *ws.Hub
 	agentsDir string
 	log       *slog.Logger
 }
 
 // New constructs the HTTP handlers. agentsDir holds prebuilt agent binaries to
-// serve at /download/<file>; pass "" to disable the download endpoint.
-func New(srv *servers.Service, a *authsvc.Service, m *metricssvc.Service, al *alertssvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
+// serve at /download/<file>; pass "" to disable the download endpoint. logs may
+// be nil/disabled when no external log database is configured.
+func New(srv *servers.Service, a *authsvc.Service, m *metricssvc.Service, al *alertssvc.Service, lg *logssvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Handlers{servers: srv, auth: a, metrics: m, alerts: al, hub: hub, agentsDir: agentsDir, log: log}
+	return &Handlers{servers: srv, auth: a, metrics: m, alerts: al, logs: lg, hub: hub, agentsDir: agentsDir, log: log}
 }
 
 var upgrader = websocket.Upgrader{

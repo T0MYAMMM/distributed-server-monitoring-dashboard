@@ -6,6 +6,7 @@ import type {
   Alert,
   Client,
   FleetSummary,
+  LogLine,
   MetricRange,
   MetricSample,
   Server,
@@ -90,6 +91,27 @@ export const getAlerts = (severity?: string, limit?: number) => {
 };
 export const acknowledgeAlert = (id: number) =>
   request<void>(`/alerts/${id}/acknowledge`, { method: "POST" });
+
+// --- logs ---
+export interface LogFilter {
+  level?: string;
+  q?: string;
+  since?: string;
+  limit?: number;
+}
+export const getServerLogs = (id: string, opts: LogFilter = {}) => {
+  const params = new URLSearchParams();
+  if (opts.level) params.set("level", opts.level);
+  if (opts.q) params.set("q", opts.q);
+  if (opts.since) params.set("since", opts.since);
+  if (opts.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  return request<LogLine[]>(`/servers/${id}/logs${qs ? `?${qs}` : ""}`);
+};
+
+// logsStreamUrl is the SSE endpoint for live-tailing a server's logs.
+export const logsStreamUrl = (id: string, after: number) =>
+  `${V1}/servers/${id}/logs/stream?after=${after}`;
 
 // --- admin ---
 export const getUnknownAgents = () =>
