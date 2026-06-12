@@ -60,10 +60,16 @@ func TestInsertAndQuery(t *testing.T) {
 		t.Errorf("level filter = %+v want one ERROR/db", errs)
 	}
 
-	// Module filter.
-	dbOnly, _ := st.QueryLogs(ctx, domain.LogQuery{ServerID: id, Module: "db"})
+	// Single-module filter.
+	dbOnly, _ := st.QueryLogs(ctx, domain.LogQuery{ServerID: id, Modules: []string{"db"}})
 	if len(dbOnly) != 1 || dbOnly[0].Module != "db" {
 		t.Errorf("module filter = %+v want one db line", dbOnly)
+	}
+
+	// Multi-module filter (app + db = all three lines).
+	both, _ := st.QueryLogs(ctx, domain.LogQuery{ServerID: id, Modules: []string{"app", "db"}})
+	if len(both) != 3 {
+		t.Errorf("multi-module filter = %d want 3", len(both))
 	}
 
 	// Distinct modules for the per-node dropdown.
