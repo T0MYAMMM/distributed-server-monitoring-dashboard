@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | As-built (documents the shipped product) |
-| **Version** | 1.0 |
+| **Status** | As-built (documents the shipped product, post-refactor) |
+| **Version** | 2.0 |
 | **Last updated** | 2026-06-12 |
 | **Owner** | Thomas Stefen |
 | **Repo** | `distributed-server-monitoring-dashboard` |
@@ -92,7 +92,7 @@ network.
 | Storage | SQLite via `modernc.org/sqlite` (pure Go, no cgo → static binary); schema auto-migrates |
 | Auth | bcrypt password hash + JWT (HS256), 1-day sessions; signing key auto-generated and persisted (`data/.secret`) or pinned via `SECRET_KEY` |
 | Agent (`server-monitor-go/cmd/agent`) | gopsutil metrics in one static binary; Unix daemon + Windows SCM service wrappers |
-| Frontend (`frontend/`) | Next.js 14, Chakra UI, Tailwind, dark/light theme (next-themes), WebSocket subscription with REST polling fallback |
+| Frontend (`frontend/`) | Next.js 14 App Router, TypeScript, Tailwind + shadcn/ui (Radix), TanStack Query, Recharts, lucide icons, dark-first theme (next-themes), WebSocket subscription with REST polling fallback |
 | Deploy | systemd units (`deploy/monitor-server.service`, `deploy/monitor-frontend.service`), install scripts for Linux (bash) and Windows (PowerShell) |
 
 ## 7. Functional requirements (current feature set)
@@ -173,23 +173,44 @@ or `MONITOR_SERVER` env), `--interval`.
 
 ### 7.6 API contract
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/servers` | List; IPs masked unless `Authorization: Bearer <jwt>` |
-| GET | `/api/servers/{id}` | Single server |
-| POST | `/api/servers/update` | Agent ingest (allow-listed names only; 403 otherwise) |
-| PUT | `/api/servers/{id}/status` | Force status |
-| PUT | `/api/servers/{id}/order` | Set display order |
-| POST | `/api/servers/{id}/heartbeat` | Lightweight liveness |
-| DELETE | `/api/servers/{id}` | Remove server + allow-list entry |
-| GET / POST | `/api/clients` | List / add allow-listed clients |
-| GET | `/api/auth/status` | `{initialized}` |
-| POST | `/api/auth/initialize` | First-run admin password |
-| POST | `/api/auth/login` | Returns 1-day JWT |
-| POST | `/api/auth/reset-password` | Change admin password |
-| GET | `/api/ws/dashboard` | WebSocket: pushes the (IP-masked) server list |
-| GET | `/download/<file>` | Agent binaries from `AGENTS_DIR` |
-| GET | `/healthz` | Liveness |
+`/api/v1/...` is the **canonical surface**; every legacy `/api/...` path below
+remains functional as an alias to the same handler (deployed agents and older
+clients keep working). On v1, mutating routes require `Authorization: Bearer
+<jwt>`; legacy paths stay open (the tailnet is the boundary). Errors are flat
+`{"error":"msg"}` on legacy paths and nested `{"error":{"code","message"}}` on
+v1. The WebSocket masks IPs for anonymous sockets and sends unmasked frames to
+sockets that present a valid `?token=` (admin).
+
+Core contract (both `/api/...` and `/api/v1/...`):
+
+| Method | Path | Auth (v1) | Notes |
+|---|---|---|---|
+| GET | `/servers` | — | List; IPs masked unless admin |
+| GET | `/servers/{id}` | — | Single server |
+| POST | `/servers/update` | — | Agent ingest (allow-listed names only; 403 otherwise) |
+| PUT | `/servers/{id}/status` | JWT | Force status |
+| PUT | `/servers/{id}/order` | JWT | Set display order |
+| POST | `/servers/{id}/heartbeat` | — | Lightweight liveness |
+| DELETE | `/servers/{id}` | JWT | Remove server + allow-list entry |
+| GET | `/clients` | — | List allow-listed clients |
+| POST | `/clients` | JWT | Add an allow-listed client |
+| GET | `/auth/status` | — | `{initialized}` |
+| POST | `/auth/initialize` | — | First-run admin password |
+| POST | `/auth/login` | — | Returns 1-day JWT |
+| POST | `/auth/reset-password` | — | Change admin password |
+| GET | `/ws/dashboard` | `?token=` | WebSocket: server list (masked unless admin token) |
+
+New in v1 only:
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/v1/servers/{id}/metrics?range=1h\|6h\|24h\|7d` | — | Downsampled time series (<=500 points) |
+| GET | `/api/v1/metrics/summary?range=...` | — | Fleet KPIs + previous-window deltas + uptime % |
+| GET | `/api/v1/alerts?severity=&limit=` | — | Status-change + threshold alerts |
+| POST | `/api/v1/alerts/{id}/acknowledge` | JWT | Acknowledge an alert |
+| GET | `/api/v1/admin/unknown-agents` | JWT | Recently rejected (unregistered) reports |
+
+Unversioned: `GET /download/<file>` (agent binaries), `GET /healthz` (liveness).
 
 ### 7.7 Configuration (hub)
 
@@ -200,6 +221,9 @@ or `MONITOR_SERVER` env), `--interval`.
 | `DATABASE_PATH` | `<DATA_DIR>/servers.db` | SQLite file |
 | `AGENTS_DIR` | `./dist` | Binaries served at `/download` (empty ⇒ disabled) |
 | `SECRET_KEY` | auto, persisted | JWT signing key |
+| `STALE_AFTER_SECONDS` | `30` | Silence before `running` → `stopped` |
+| `ALERT_WEBHOOK_URL` | _(empty)_ | Generic webhook for alert JSON (empty ⇒ disabled) |
+| `ALERT_DISK_THRESHOLD` | `90` | Disk-usage percent that raises a threshold alert |
 
 Frontend: `PORT` (dashboard port); the dashboard auto-detects the API at
 `<host>:5000`, overridable with `NEXT_PUBLIC_API_URL`.
@@ -227,16 +251,17 @@ Frontend: `PORT` (dashboard port); the dashboard auto-detects the API at
 
 ## 10. Known limitations / candidate roadmap
 
-Observed in operation (not yet requirements):
+Observed in operation:
 
-1. **No ingest observability** — rejected reports (unregistered names) are
-   silently 403'd with no log line; diagnosing a misnamed agent requires
-   packet capture. *Candidate: log rejected names + surface "recent unknown
-   agents" in the admin panel.*
-2. **No history** — only the latest snapshot per server is stored; no trends,
-   no graphs. *Candidate: ring-buffer table + sparklines.*
-3. **No alerting** — a server going `stopped` is visible but not pushed
-   anywhere. *Candidate: webhook/ntfy/email on status transition.*
+1. ~~**No ingest observability**~~ — **Addressed.** Rejected reports are logged
+   (name + remote addr) and recorded in `unknown_agents`, surfaced in the admin
+   panel and `GET /api/v1/admin/unknown-agents`.
+2. ~~**No history**~~ — **Addressed.** `metrics_samples` + 5-minute rollups
+   drive per-server charts, fleet summary KPIs, and uptime %
+   (`GET /api/v1/servers/{id}/metrics`, `/api/v1/metrics/summary`).
+3. ~~**No alerting**~~ — **Addressed.** Status-transition and disk-threshold
+   alerts are recorded and delivered via a generic webhook (`ALERT_WEBHOOK_URL`,
+   pluggable notifier); list + acknowledge under `/api/v1/alerts`.
 4. **Single admin credential** — one shared password, no users/roles/audit.
 5. **External lookups** — geo/IP detection depends on ip-api.com and
    ipify.org being reachable from each agent.

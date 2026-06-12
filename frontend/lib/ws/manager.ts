@@ -2,6 +2,7 @@
 // reconnection. The backend pushes the (IP-masked) server list as a JSON array;
 // REST polling in the query hook is the fallback when the socket is down.
 import { WS_URL } from "@/config/config";
+import { getToken } from "@/lib/auth";
 import type { Server } from "@/lib/api/types";
 
 export interface DashboardSocketHandlers {
@@ -23,9 +24,16 @@ export class DashboardSocket {
     this.open();
   }
 
+  private url(): string {
+    // Browsers cannot set a WS Authorization header, so the admin token rides as
+    // a query param; the backend then sends unmasked frames to this connection.
+    const token = getToken();
+    return token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
+  }
+
   private open(): void {
     try {
-      this.ws = new WebSocket(WS_URL);
+      this.ws = new WebSocket(this.url());
     } catch {
       this.scheduleReconnect();
       return;

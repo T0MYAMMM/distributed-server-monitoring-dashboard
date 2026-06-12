@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getServers } from "@/lib/api/client";
 import { DashboardSocket } from "@/lib/ws/manager";
+import { onAuthChange } from "@/lib/auth";
 
 export const serversKey = ["servers"] as const;
 
@@ -22,12 +23,22 @@ export function useServers() {
   });
 
   useEffect(() => {
-    const socket = new DashboardSocket({
-      onServers: (servers) => qc.setQueryData(serversKey, servers),
-      onConnectionChange: setWsConnected,
-    });
-    socket.connect();
-    return () => socket.close();
+    let socket: DashboardSocket | null = null;
+    const connect = () => {
+      socket?.close();
+      socket = new DashboardSocket({
+        onServers: (servers) => qc.setQueryData(serversKey, servers),
+        onConnectionChange: setWsConnected,
+      });
+      socket.connect();
+    };
+    connect();
+    // Re-handshake when auth changes so IP masking stays correct live.
+    const unsub = onAuthChange(connect);
+    return () => {
+      unsub();
+      socket?.close();
+    };
   }, [qc]);
 
   return { ...query, wsConnected };
