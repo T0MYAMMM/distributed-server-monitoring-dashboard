@@ -562,6 +562,33 @@ func TestWebSocketAuthedUnmasked(t *testing.T) {
 	}
 }
 
+// TestErrorEnvelopes locks decision D4: legacy paths keep the flat error body,
+// the canonical /api/v1 surface uses the nested {error:{code,message}} envelope.
+func TestErrorEnvelopes(t *testing.T) {
+	srv, _, _ := setupAPI(t)
+
+	// Legacy: flat {"error":"..."}.
+	_, body := do(t, http.MethodPost, srv.URL+"/api/servers/update", domain.Server{Name: "ghost"}, "")
+	var flat struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &flat); err != nil || flat.Error == "" {
+		t.Errorf("legacy error not flat: %s", body)
+	}
+
+	// v1: nested {"error":{"code","message"}}.
+	_, body = do(t, http.MethodPost, srv.URL+"/api/v1/servers/update", domain.Server{Name: "ghost"}, "")
+	var nested struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &nested); err != nil || nested.Error.Code == "" || nested.Error.Message == "" {
+		t.Errorf("v1 error not nested: %s", body)
+	}
+}
+
 // getServer fetches and decodes a single server, failing the test on non-200.
 func getServer(t *testing.T, base, id, token string) domain.Server {
 	t.Helper()
