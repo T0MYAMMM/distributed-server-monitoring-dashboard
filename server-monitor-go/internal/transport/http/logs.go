@@ -55,6 +55,7 @@ func (h *Handlers) queryLogs(w http.ResponseWriter, r *http.Request) {
 	lines, err := h.logs.Query(r.Context(), domain.LogQuery{
 		ServerID: r.PathValue("id"),
 		Level:    q.Get("level"),
+		Module:   q.Get("module"),
 		Search:   q.Get("q"),
 		Since:    q.Get("since"),
 		Until:    q.Get("until"),
@@ -66,6 +67,21 @@ func (h *Handlers) queryLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, lines)
+}
+
+// logModules lists the distinct app/module names seen for a server, to populate
+// the per-node module filter in the UI.
+func (h *Handlers) logModules(w http.ResponseWriter, r *http.Request) {
+	if !h.logsEnabled() {
+		writeError(w, r, http.StatusServiceUnavailable, "Logs are not enabled")
+		return
+	}
+	modules, err := h.logs.Modules(r.Context(), r.PathValue("id"))
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, modules)
 }
 
 // streamLogs live-tails a server's logs over Server-Sent Events, polling the log
@@ -84,14 +100,18 @@ func (h *Handlers) streamLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	q := r.URL.Query()
 	id := r.PathValue("id")
-	after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
+	after, _ := strconv.ParseInt(q.Get("after"), 10, 64)
+	level, module, search := q.Get("level"), q.Get("module"), q.Get("q")
 	ctx := r.Context()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
-		lines, err := h.logs.Query(ctx, domain.LogQuery{ServerID: id, AfterID: after, Limit: 200})
+		lines, err := h.logs.Query(ctx, domain.LogQuery{
+			ServerID: id, Level: level, Module: module, Search: search, AfterID: after, Limit: 200,
+		})
 		if err == nil {
 			for _, l := range lines {
 				after = l.ID

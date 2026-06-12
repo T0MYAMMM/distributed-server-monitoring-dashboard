@@ -56,6 +56,7 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_logs_server_id_id ON logs(server_id, id DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_logs_server_module ON logs(server_id, module)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := s.pool.Exec(ctx, stmt); err != nil {
@@ -102,10 +103,12 @@ func (s *Store) QueryLogs(ctx context.Context, q domain.LogQuery) ([]domain.LogL
 	if q.Level != "" {
 		add("level = $%d", strings.ToUpper(q.Level))
 	}
+	if q.Module != "" {
+		add("module = $%d", q.Module)
+	}
 	if q.Search != "" {
-		args = append(args, "%"+q.Search+"%")
-		n := len(args)
-		where = append(where, fmt.Sprintf("(message ILIKE $%d OR module ILIKE $%d)", n, n))
+		// Keyword grep on the message only; module has its own filter.
+		add("message ILIKE $%d", "%"+q.Search+"%")
 	}
 	if q.File != "" {
 		add("source_file = $%d", q.File)
@@ -145,6 +148,27 @@ func (s *Store) QueryLogs(ctx context.Context, q domain.LogQuery) ([]domain.LogL
 		}
 		l.Ts = ts.UTC().Format(tsLayout)
 		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// Modules returns the distinct module (app) names seen for a server, so the UI
+// can offer a per-node module filter.
+func (s *Store) Modules(ctx context.Context, serverID string) ([]string, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT DISTINCT module FROM logs WHERE server_id = $1 AND module <> '' ORDER BY module LIMIT 200`,
+		serverID)
+	if err != nil {
+		return nil, fmt.Errorf("query modules: %w", err)
+	}
+	defer rows.Close()
+	out := make([]string, 0)
+	for rows.Next() {
+		var m string
+		if err := rows.Scan(&m); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
 	}
 	return out, rows.Err()
 }

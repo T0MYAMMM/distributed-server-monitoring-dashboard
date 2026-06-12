@@ -55,6 +55,7 @@ func (h *Handlers) Handler(log *slog.Logger) http.Handler {
 	// and live-tail (SSE) are public reads. All return 503 when logs are off.
 	mux.HandleFunc("POST /api/v1/logs", h.ingestLogs)
 	mux.HandleFunc("GET /api/v1/servers/{id}/logs", h.queryLogs)
+	mux.HandleFunc("GET /api/v1/servers/{id}/logs/modules", h.logModules)
 	mux.HandleFunc("GET /api/v1/servers/{id}/logs/stream", h.streamLogs)
 
 	mux.HandleFunc("GET /healthz", h.healthz)

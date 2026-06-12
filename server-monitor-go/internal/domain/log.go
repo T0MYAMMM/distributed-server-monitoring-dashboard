@@ -21,10 +21,12 @@ type LogLine struct {
 }
 
 // LogQuery filters a log search. Empty fields are ignored. AfterID > 0 selects
-// only newer rows (used by the live-tail stream).
+// only newer rows (used by the live-tail stream). Search is a keyword match on
+// the message only; Module filters by app/module exactly.
 type LogQuery struct {
 	ServerID string
 	Level    string
+	Module   string
 	Search   string
 	Since    string
 	Until    string
