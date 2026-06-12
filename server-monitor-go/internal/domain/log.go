@@ -26,7 +26,7 @@ type LogLine struct {
 type LogQuery struct {
 	ServerID string
 	Level    string
-	Module   string
+	Modules  []string
 	Search   string
 	Since    string
 	Until    string

@@ -103,8 +103,8 @@ func (s *Store) QueryLogs(ctx context.Context, q domain.LogQuery) ([]domain.LogL
 	if q.Level != "" {
 		add("level = $%d", strings.ToUpper(q.Level))
 	}
-	if q.Module != "" {
-		add("module = $%d", q.Module)
+	if len(q.Modules) > 0 {
+		add("module = ANY($%d)", q.Modules)
 	}
 	if q.Search != "" {
 		// Keyword grep on the message only; module has its own filter.

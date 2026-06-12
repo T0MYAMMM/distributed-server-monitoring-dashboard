@@ -55,7 +55,7 @@ func (h *Handlers) queryLogs(w http.ResponseWriter, r *http.Request) {
 	lines, err := h.logs.Query(r.Context(), domain.LogQuery{
 		ServerID: r.PathValue("id"),
 		Level:    q.Get("level"),
-		Module:   q.Get("module"),
+		Modules:  nonEmpty(q["module"]),
 		Search:   q.Get("q"),
 		Since:    q.Get("since"),
 		Until:    q.Get("until"),
@@ -103,14 +103,14 @@ func (h *Handlers) streamLogs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	id := r.PathValue("id")
 	after, _ := strconv.ParseInt(q.Get("after"), 10, 64)
-	level, module, search := q.Get("level"), q.Get("module"), q.Get("q")
+	level, modules, search := q.Get("level"), nonEmpty(q["module"]), q.Get("q")
 	ctx := r.Context()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
 		lines, err := h.logs.Query(ctx, domain.LogQuery{
-			ServerID: id, Level: level, Module: module, Search: search, AfterID: after, Limit: 200,
+			ServerID: id, Level: level, Modules: modules, Search: search, AfterID: after, Limit: 200,
 		})
 		if err == nil {
 			for _, l := range lines {
@@ -130,3 +130,14 @@ func (h *Handlers) streamLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) logsEnabled() bool { return h.logs != nil && h.logs.Enabled() }
+
+// nonEmpty drops blank values from a multi-valued query param.
+func nonEmpty(vals []string) []string {
+	out := make([]string, 0, len(vals))
+	for _, v := range vals {
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}

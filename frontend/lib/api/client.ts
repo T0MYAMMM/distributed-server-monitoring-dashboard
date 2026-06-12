@@ -95,7 +95,7 @@ export const acknowledgeAlert = (id: number) =>
 // --- logs ---
 export interface LogFilter {
   level?: string;
-  module?: string;
+  modules?: string[];
   q?: string;
   since?: string;
   limit?: number;
@@ -103,7 +103,7 @@ export interface LogFilter {
 function logParams(opts: LogFilter): URLSearchParams {
   const params = new URLSearchParams();
   if (opts.level) params.set("level", opts.level);
-  if (opts.module) params.set("module", opts.module);
+  (opts.modules ?? []).forEach((m) => params.append("module", m));
   if (opts.q) params.set("q", opts.q);
   if (opts.since) params.set("since", opts.since);
   if (opts.limit) params.set("limit", String(opts.limit));

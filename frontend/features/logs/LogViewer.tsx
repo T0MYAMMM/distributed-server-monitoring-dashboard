@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Radio, ScrollText, Search } from "lucide-react";
+import { ChevronDown, Radio, ScrollText, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -32,8 +39,8 @@ export function LogViewer() {
   const { data: servers } = useServers();
   const [serverId, setServerId] = useState("");
   const [level, setLevel] = useState("");
-  const [module, setModule] = useState("");
-  const [modules, setModules] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]); // chosen modules
+  const [modules, setModules] = useState<string[]>([]); // available modules
   const [q, setQ] = useState("");
   const [live, setLive] = useState(false);
   const [lines, setLines] = useState<LogLine[]>([]);
@@ -50,7 +57,7 @@ export function LogViewer() {
   // node); reset the module filter so a stale selection isn't carried over.
   useEffect(() => {
     if (!serverId) return;
-    setModule("");
+    setSelected([]);
     let cancelled = false;
     getServerLogModules(serverId)
       .then((m) => !cancelled && setModules(m))
@@ -71,7 +78,7 @@ export function LogViewer() {
     const loadOnce = async () => {
       setLoading(true);
       try {
-        const data = await getServerLogs(serverId, { level, module, q, limit: 500 });
+        const data = await getServerLogs(serverId, { level, modules: selected, q, limit: 500 });
         if (cancelled) return;
         const chrono = [...data].reverse(); // oldest first for a terminal feel
         lastId.current = chrono.length ? chrono[chrono.length - 1].id : 0;
@@ -87,7 +94,7 @@ export function LogViewer() {
       await loadOnce();
       if (cancelled || disabled) return;
       if (live) {
-        es = new EventSource(logsStreamUrl(serverId, lastId.current, { level, module, q }));
+        es = new EventSource(logsStreamUrl(serverId, lastId.current, { level, modules: selected, q }));
         es.onmessage = (ev) => {
           try {
             const l = JSON.parse(ev.data) as LogLine;
@@ -108,7 +115,7 @@ export function LogViewer() {
       if (interval) clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId, level, module, q, live]);
+  }, [serverId, level, selected, q, live]);
 
   useEffect(() => {
     if (live && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -143,20 +150,40 @@ export function LogViewer() {
               </option>
             ))}
           </select>
-          <select
-            value={module}
-            onChange={(e) => setModule(e.target.value)}
-            className="h-9 max-w-[200px] rounded-md border border-input bg-background px-2 text-sm"
-            aria-label="App / module"
-            disabled={modules.length === 0}
-          >
-            <option value="">{modules.length ? "All apps" : "No apps yet"}</option>
-            {modules.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9" disabled={modules.length === 0}>
+                {modules.length === 0
+                  ? "No apps yet"
+                  : selected.length === 0
+                    ? "All apps"
+                    : `${selected.length} app${selected.length > 1 ? "s" : ""}`}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
+              {modules.map((m) => (
+                <DropdownMenuCheckboxItem
+                  key={m}
+                  checked={selected.includes(m)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(c) =>
+                    setSelected((cur) => (c ? [...cur, m] : cur.filter((x) => x !== m)))
+                  }
+                >
+                  {m}
+                </DropdownMenuCheckboxItem>
+              ))}
+              {selected.length > 0 && (
+                <DropdownMenuItem
+                  onSelect={() => setSelected([])}
+                  className="justify-center text-xs text-muted-foreground"
+                >
+                  Clear selection
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <div className="relative min-w-[180px] flex-1">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
