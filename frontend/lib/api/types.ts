@@ -78,3 +78,15 @@ export interface UnknownAgent {
 }
 
 export type MetricRange = "1h" | "6h" | "24h" | "7d";
+
+export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
+
+export interface LogLine {
+  id: number;
+  server: string;
+  ts: string;
+  level: string;
+  module: string;
+  message: string;
+  source_file: string;
+}

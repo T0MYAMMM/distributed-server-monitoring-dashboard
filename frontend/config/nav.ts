@@ -24,7 +24,7 @@ export const mainNav: NavItem[] = [
   { title: "Dashboard", href: "/", icon: LayoutDashboard },
   { title: "Servers", href: "/servers", icon: Server },
   { title: "Alerts & Incidents", href: "/alerts", icon: Bell },
-  { title: "Logs & Activity", href: "/logs", icon: ScrollText, comingSoon: true },
+  { title: "Logs & Activity", href: "/logs", icon: ScrollText },
   { title: "Analytics", href: "/analytics", icon: BarChart3, comingSoon: true },
   { title: "Integrations", href: "/integrations", icon: Plug, comingSoon: true },
 ];
