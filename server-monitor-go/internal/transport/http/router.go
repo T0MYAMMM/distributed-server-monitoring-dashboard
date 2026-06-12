@@ -51,6 +51,12 @@ func (h *Handlers) Handler(log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/v1/alerts", h.listAlerts)
 	mux.Handle("POST /api/v1/alerts/{id}/acknowledge", requireAuth(http.HandlerFunc(h.acknowledgeAlert)))
 
+	// Logs (external DB): agent ingest is allow-list gated like metrics; query
+	// and live-tail (SSE) are public reads. All return 503 when logs are off.
+	mux.HandleFunc("POST /api/v1/logs", h.ingestLogs)
+	mux.HandleFunc("GET /api/v1/servers/{id}/logs", h.queryLogs)
+	mux.HandleFunc("GET /api/v1/servers/{id}/logs/stream", h.streamLogs)
+
 	mux.HandleFunc("GET /healthz", h.healthz)
 
 	// Serve prebuilt agent binaries so tailnet hosts can self-install.
