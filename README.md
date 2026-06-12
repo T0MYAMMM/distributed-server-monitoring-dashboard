@@ -45,14 +45,19 @@ no runtime dependencies); the dashboard is **Next.js**. Built to run over a
 
 ```
 .
-├── frontend/           # Next.js dashboard (real-time, dark/light)
+├── frontend/           # Next.js App Router dashboard (Tailwind + shadcn, TanStack Query)
 └── server-monitor-go/  # Go backend + agent  ← see its README for full docs
     ├── cmd/{server,agent}
-    ├── internal/{config,models,store,auth,hub,api,monitor,metrics}
+    ├── internal/{config,domain,storage/sqlite,service/*,transport/*,masking,auth,metrics}
     ├── deploy/          # systemd units for the hub
     ├── scripts/         # build.sh, install_agent.sh, install_agent.ps1
     └── dist/            # built static binaries
 ```
+
+Architecture and contributor docs:
+[`docs/architecture.md`](docs/architecture.md) (backend layering + frontend
+conventions) · [`docs/adding-a-feature.md`](docs/adding-a-feature.md)
+(step-by-step checklist) · [`docs/PRD.md`](docs/PRD.md) (product requirements).
 
 ## Quick start
 
