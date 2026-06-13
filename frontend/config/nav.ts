@@ -25,14 +25,14 @@ export const mainNav: NavItem[] = [
   { title: "Servers", href: "/servers", icon: Server },
   { title: "Alerts & Incidents", href: "/alerts", icon: Bell },
   { title: "Logs & Activity", href: "/logs", icon: ScrollText },
-  { title: "Analytics", href: "/analytics", icon: BarChart3, comingSoon: true },
-  { title: "Integrations", href: "/integrations", icon: Plug, comingSoon: true },
+  { title: "Analytics", href: "/analytics", icon: BarChart3 },
+  { title: "Integrations", href: "/integrations", icon: Plug },
 ];
 
 export const supportNav: NavItem[] = [
-  { title: "Feedback", href: "/feedback", icon: MessageSquare, comingSoon: true },
-  { title: "Help", href: "/help", icon: HelpCircle, comingSoon: true },
-  { title: "Settings", href: "/settings", icon: Settings, comingSoon: true },
+  { title: "Feedback", href: "/feedback", icon: MessageSquare },
+  { title: "Help", href: "/help", icon: HelpCircle },
+  { title: "Settings", href: "/settings", icon: Settings },
 ];
 
 export const adminNavItem: NavItem = { title: "Admin", href: "/admin", icon: ShieldCheck };

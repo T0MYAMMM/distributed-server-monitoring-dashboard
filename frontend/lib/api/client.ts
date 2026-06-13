@@ -4,13 +4,20 @@ import { API_URL } from "@/config/config";
 import { getToken } from "@/lib/auth";
 import type {
   Alert,
+  AnalyticsRange,
   Client,
+  Feedback,
   FleetSummary,
   LogLine,
+  LogVolumePoint,
   MetricRange,
   MetricSample,
+  ModuleStat,
+  NotificationChannel,
   Server,
+  ServerStat,
   ServerStatus,
+  SettingsDoc,
   UnknownAgent,
 } from "./types";
 
@@ -124,6 +131,51 @@ export const logsStreamUrl = (id: string, after: number, opts: LogFilter = {}) =
   const params = logParams(opts);
   params.set("after", String(after));
   return `${V1}/servers/${id}/logs/stream?${params.toString()}`;
+};
+
+// --- settings ---
+export const getSettings = () => request<SettingsDoc>("/settings");
+export const updateSettings = (values: Record<string, string>) =>
+  request<SettingsDoc>("/settings", { method: "PUT", body: values });
+
+// --- notification channels ---
+export const getChannels = () =>
+  request<NotificationChannel[]>("/notification-channels");
+export const addChannel = (body: {
+  type: string;
+  name: string;
+  config: Record<string, string>;
+  enabled: boolean;
+}) => request<NotificationChannel>("/notification-channels", { method: "POST", body });
+export const updateChannel = (
+  id: number,
+  body: { name: string; config: Record<string, string>; enabled: boolean },
+) => request<NotificationChannel>(`/notification-channels/${id}`, { method: "PUT", body });
+export const deleteChannel = (id: number) =>
+  request<void>(`/notification-channels/${id}`, { method: "DELETE" });
+export const testChannel = (id: number) =>
+  request<{ ok: boolean; error?: string }>(`/notification-channels/${id}/test`, {
+    method: "POST",
+  });
+
+// --- feedback ---
+export const submitFeedback = (body: { category: string; message: string; page: string }) =>
+  request<Feedback>("/feedback", { method: "POST", body });
+export const getFeedback = (limit?: number) =>
+  request<Feedback[]>(`/feedback${limit ? `?limit=${limit}` : ""}`);
+
+// --- analytics ---
+export const getAnalyticsServers = (range: AnalyticsRange) =>
+  request<ServerStat[]>(`/analytics/servers?range=${range}`);
+export const getLogVolume = (range: AnalyticsRange, server?: string) => {
+  const params = new URLSearchParams({ range });
+  if (server) params.set("server", server);
+  return request<LogVolumePoint[]>(`/analytics/logs/volume?${params.toString()}`);
+};
+export const getTopModules = (range: AnalyticsRange, server?: string, limit = 8) => {
+  const params = new URLSearchParams({ range, limit: String(limit) });
+  if (server) params.set("server", server);
+  return request<ModuleStat[]>(`/analytics/logs/modules?${params.toString()}`);
 };
 
 // --- admin ---
