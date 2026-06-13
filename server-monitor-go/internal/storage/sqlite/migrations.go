@@ -111,6 +111,48 @@ var migrations = []migration{
 			`CREATE INDEX idx_alerts_created ON alerts(created_at)`,
 		},
 	},
+	{
+		version: 6,
+		name:    "settings (env-backed config editable in-app)",
+		stmts: []string{
+			`CREATE TABLE settings (
+				key TEXT PRIMARY KEY,
+				value TEXT NOT NULL DEFAULT '',
+				updated_at TEXT DEFAULT (datetime('now'))
+			)`,
+		},
+	},
+	{
+		version: 7,
+		name:    "notification channels (alert delivery targets)",
+		stmts: []string{
+			`CREATE TABLE notification_channels (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				type TEXT NOT NULL,
+				name TEXT NOT NULL DEFAULT '',
+				config TEXT NOT NULL DEFAULT '{}',
+				enabled INTEGER NOT NULL DEFAULT 1,
+				last_status TEXT NOT NULL DEFAULT '',
+				last_error TEXT NOT NULL DEFAULT '',
+				last_delivery TEXT NOT NULL DEFAULT '',
+				created_at TEXT DEFAULT (datetime('now'))
+			)`,
+		},
+	},
+	{
+		version: 8,
+		name:    "feedback (in-app submissions)",
+		stmts: []string{
+			`CREATE TABLE feedback (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				category TEXT NOT NULL DEFAULT 'general',
+				message TEXT NOT NULL DEFAULT '',
+				page TEXT NOT NULL DEFAULT '',
+				created_at TEXT DEFAULT (datetime('now'))
+			)`,
+			`CREATE INDEX idx_feedback_created ON feedback(created_at)`,
+		},
+	},
 }
 
 // legacyBaselineVersion is the schema version produced by the pre-versioning

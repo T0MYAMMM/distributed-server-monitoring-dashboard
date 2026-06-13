@@ -58,6 +58,27 @@ func (h *Handlers) Handler(log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /api/v1/servers/{id}/logs/modules", h.logModules)
 	mux.HandleFunc("GET /api/v1/servers/{id}/logs/stream", h.streamLogs)
 
+	// Analytics: aggregate reads over metrics + logs. Public like the dashboard.
+	mux.HandleFunc("GET /api/v1/analytics/servers", h.analyticsServers)
+	mux.HandleFunc("GET /api/v1/analytics/logs/volume", h.analyticsLogVolume)
+	mux.HandleFunc("GET /api/v1/analytics/logs/modules", h.analyticsTopModules)
+
+	// Settings: read is public (the login screen reads the instance name and
+	// default theme); writes require auth.
+	mux.HandleFunc("GET /api/v1/settings", h.getSettings)
+	mux.Handle("PUT /api/v1/settings", requireAuth(http.HandlerFunc(h.updateSettings)))
+
+	// Notification channels: all admin-only (they hold delivery secrets).
+	mux.Handle("GET /api/v1/notification-channels", requireAuth(http.HandlerFunc(h.listChannels)))
+	mux.Handle("POST /api/v1/notification-channels", requireAuth(http.HandlerFunc(h.addChannel)))
+	mux.Handle("PUT /api/v1/notification-channels/{id}", requireAuth(http.HandlerFunc(h.updateChannel)))
+	mux.Handle("DELETE /api/v1/notification-channels/{id}", requireAuth(http.HandlerFunc(h.deleteChannel)))
+	mux.Handle("POST /api/v1/notification-channels/{id}/test", requireAuth(http.HandlerFunc(h.testChannel)))
+
+	// Feedback: submit is public (any viewer can send); listing is admin-only.
+	mux.HandleFunc("POST /api/v1/feedback", h.submitFeedback)
+	mux.Handle("GET /api/v1/feedback", requireAuth(http.HandlerFunc(h.listFeedback)))
+
 	mux.HandleFunc("GET /healthz", h.healthz)
 
 	// Serve prebuilt agent binaries so tailnet hosts can self-install.

@@ -85,6 +85,26 @@ func (s *Store) UptimeBuckets(from, to int64) (withData, total int64, err error)
 	return withData, total, nil
 }
 
+// ServerUptimeBuckets is the per-server analogue of UptimeBuckets, counting
+// distinct 5-minute buckets with data across both the raw samples and the
+// rollups (so long ranges stay accurate after raw samples are pruned).
+func (s *Store) ServerUptimeBuckets(serverID string, from, to int64) (withData, total int64, err error) {
+	err = s.db.QueryRow(`SELECT COUNT(DISTINCT b) FROM (
+			SELECT (ts/?) AS b FROM metrics_samples
+				WHERE server_id = ? AND ts >= ? AND ts < ?
+			UNION
+			SELECT (bucket/?) AS b FROM metrics_rollup_5m
+				WHERE server_id = ? AND bucket >= ? AND bucket < ?
+		)`,
+		rollupBucket, serverID, from, to,
+		rollupBucket, serverID, from, to).Scan(&withData)
+	if err != nil {
+		return 0, 0, err
+	}
+	total = (to - from) / rollupBucket
+	return withData, total, nil
+}
+
 // CompactRollups aggregates raw samples into 5-minute rollups, then prunes raw
 // samples older than rawCutoff and rollups older than rollupCutoff. Rollup runs
 // before pruning so every pruned bucket keeps a final accurate aggregate.

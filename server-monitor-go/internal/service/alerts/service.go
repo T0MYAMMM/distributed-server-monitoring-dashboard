@@ -7,6 +7,7 @@ package alerts
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/thomasstefen/server-monitor/internal/domain"
@@ -31,12 +32,14 @@ func (SystemClock) Now() time.Time { return time.Now() }
 
 // Service implements the alert use cases and the servers.AlertSink hooks.
 type Service struct {
-	repo          Repo
-	notifier      Notifier
-	clock         Clock
-	log           *slog.Logger
+	repo     Repo
+	notifier Notifier
+	clock    Clock
+	log      *slog.Logger
+	onEmit   func() // optional: refresh dashboards (e.g. WS snapshot) after an alert
+
+	mu            sync.RWMutex
 	diskThreshold float64
-	onEmit        func() // optional: refresh dashboards (e.g. WS snapshot) after an alert
 }
 
 // New constructs the alert service. diskThreshold is the disk-usage percent that
@@ -78,7 +81,10 @@ func (s *Service) StatusChanged(serverID, serverName string, from, to domain.Sta
 // Reported emits a threshold alert when disk usage exceeds the configured
 // threshold, deduplicated so an open breach does not re-alert on every report.
 func (s *Service) Reported(serverID, serverName string, disk float64) {
-	if s.diskThreshold <= 0 || disk <= s.diskThreshold {
+	s.mu.RLock()
+	threshold := s.diskThreshold
+	s.mu.RUnlock()
+	if threshold <= 0 || disk <= threshold {
 		return
 	}
 	exists, err := s.repo.UnacknowledgedThresholdExists(serverID)
@@ -111,6 +117,14 @@ func (s *Service) emit(a domain.Alert) {
 	if s.onEmit != nil {
 		s.onEmit()
 	}
+}
+
+// SetDiskThreshold updates the disk-usage percent that triggers a threshold
+// alert, applied live (e.g. from the Settings page).
+func (s *Service) SetDiskThreshold(v float64) {
+	s.mu.Lock()
+	s.diskThreshold = v
+	s.mu.Unlock()
 }
 
 // List returns alerts, optionally filtered by severity and limited.

@@ -34,6 +34,10 @@ type Config struct {
 	// (e.g. the home-db server). Empty disables the logs feature; the core
 	// monitoring stays on the hub's SQLite regardless.
 	LogDatabaseURL string
+	// FeedbackWebhookURL receives in-app feedback submissions as JSON (e.g. a
+	// Slack incoming webhook or an issue-creator). Empty: feedback is stored in
+	// the database only.
+	FeedbackWebhookURL string
 }
 
 // Load builds a Config from the environment, generating and persisting a JWT
@@ -52,6 +56,7 @@ func Load() (*Config, error) {
 		AlertWebhookURL:    os.Getenv("ALERT_WEBHOOK_URL"),
 		AlertDiskThreshold: getenvFloat("ALERT_DISK_THRESHOLD", 90),
 		LogDatabaseURL:     os.Getenv("LOG_DATABASE_URL"),
+		FeedbackWebhookURL: os.Getenv("FEEDBACK_WEBHOOK_URL"),
 	}
 
 	secret, err := loadOrCreateSecret(dataDir)
