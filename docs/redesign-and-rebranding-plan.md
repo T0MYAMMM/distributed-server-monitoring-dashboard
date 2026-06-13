@@ -336,14 +336,21 @@ removes env/CLI-only friction; RBAC/analytics open team use.
 | B2 | **Logs insights** (range, histogram, saved views, highlighting) | screen | P1 | A2 | filters URL-synced, virtualized |
 | B3 | **Alert Rules + Notification Channels** | feature | P1 | A2 | create→fire→route, testable |
 | B4 | Alerts incident view + Mobile cards | screen | P2 | A2 | grouping + responsive |
-| C1 | **Settings** + `/api/v1/settings` | feature | P2 | A2 | env values editable in-app |
-| C2 | **Integrations** catalog (+ log-source snippet gen) | feature | P2 | B3 | add/test/enable channel |
-| C3 | **Onboarding wizard** | flow | P2 | A2 | click→live node→ship logs |
-| C4 | Help + Feedback | screen | P3 | A2 | useful, submits real |
-| D1 | **RBAC / users / audit** | feature | P2 | A2 | roles enforced, viewer masked, audited |
-| D2 | Analytics | screen | P3 | A2 | reports + export |
-| D3 | Public status page | screen | P3 | D1 | opt-in, no secrets |
+| C1 | **Settings** + `/api/v1/settings` | feature | P2 | A2 | env values editable in-app | ✅ shipped |
+| C2 | **Integrations** catalog (+ log-source snippet gen) | feature | P2 | B3 | add/test/enable channel | ✅ shipped |
+| C3 | **Onboarding wizard** | flow | P2 | A2 | click→live node→ship logs | |
+| C4 | Help + Feedback | screen | P3 | A2 | useful, submits real | ✅ shipped |
+| D1 | **RBAC / users / audit** | feature | P2 | A2 | roles enforced, viewer masked, audited | |
+| D2 | Analytics | screen | P3 | A2 | reports + export | ✅ shipped |
+| D3 | Public status page | screen | P3 | D1 | opt-in, no secrets | |
 
 Each packet should ship: the interface design (per §4.1 constraints + §3 brand),
 the states (loading/empty/error), and—where a brief names an API—the request/
 response shape so backend and frontend can proceed in parallel.
+
+> **Status (June 2026).** The five "coming soon" surfaces are now built and live:
+> **Settings** (C1), **Integrations** channels + log-source generator (C2),
+> **Help** + **Feedback** (C4), and **Analytics** (D2). C2 ships the notification
+> **channels** half of B3 (CRUD + per-type delivery + test-send, fanned out from
+> the alerts service); the full **alert-rules builder** in B3 remains open, as do
+> the onboarding wizard (C3), RBAC (D1), and the public status page (D3).

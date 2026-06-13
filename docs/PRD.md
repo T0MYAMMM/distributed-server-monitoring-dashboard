@@ -225,9 +225,36 @@ Unversioned: `GET /download/<file>` (agent binaries), `GET /healthz` (liveness).
 | `ALERT_WEBHOOK_URL` | _(empty)_ | Generic webhook for alert JSON (empty ⇒ disabled) |
 | `ALERT_DISK_THRESHOLD` | `90` | Disk-usage percent that raises a threshold alert |
 | `LOG_DATABASE_URL` | _(empty)_ | External Postgres for per-VM logs; empty ⇒ logs disabled |
+| `FEEDBACK_WEBHOOK_URL` | _(empty)_ | Webhook that in-app feedback is forwarded to (empty ⇒ stored only) |
+
+Several of these (instance name, disk threshold, stale-after, log retention, IP
+masking, default theme/density, session length) are now editable in-app on the
+**Settings** page via `GET/PUT /api/v1/settings`, persisted in a `settings`
+table. **Env vars win**: a value set by an environment variable stays
+authoritative and is shown locked in the UI.
 
 Frontend: `PORT` (dashboard port); the dashboard auto-detects the API at
 `<host>:5000`, overridable with `NEXT_PUBLIC_API_URL`.
+
+### 7.9 Configurability & insight surfaces
+
+The previously-placeholder nav items are now built:
+
+- **Settings** — `GET/PUT /api/v1/settings` backs the env-only values above.
+- **Integrations** — `notification_channels` CRUD + test-send (Slack, Discord,
+  ntfy, generic webhook, PagerDuty, SMTP email); every enabled channel receives
+  each alert alongside the legacy `ALERT_WEBHOOK_URL`. Plus a log-source snippet
+  generator that emits the agent `--logs` + bridge for journald/Docker/file/glob.
+  Endpoints: `GET/POST/PUT/DELETE /api/v1/notification-channels`,
+  `POST /api/v1/notification-channels/{id}/test`.
+- **Analytics** — per-server uptime + disk-capacity projection
+  (`GET /api/v1/analytics/servers`) and log volume by level / top error modules
+  (`GET /api/v1/analytics/logs/volume`, `/logs/modules`); date-range driven with
+  CSV export.
+- **Feedback** — `POST /api/v1/feedback` (public; forwarded to
+  `FEEDBACK_WEBHOOK_URL`) + admin `GET`; with an in-app changelog.
+- **Help** — in-app, searchable runbooks (architecture, add-a-machine, logs
+  cookbook, alerts) + keyboard shortcuts.
 
 ### 7.8 Per-VM log monitoring
 
