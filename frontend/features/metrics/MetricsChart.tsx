@@ -23,9 +23,9 @@ const RANGES: MetricRange[] = ["1h", "6h", "24h", "7d"];
 // Colors resolve through the design tokens (the browser resolves the CSS vars in
 // the SVG stroke), so the chart never hardcodes hex values.
 const SERIES = [
-  { key: "cpu", label: "CPU", color: "hsl(var(--primary))" },
-  { key: "memory", label: "Memory", color: "hsl(var(--success))" },
-  { key: "disk", label: "Disk", color: "hsl(var(--warning))" },
+  { key: "cpu", label: "CPU", color: "var(--cg-series-1)" },
+  { key: "memory", label: "Memory", color: "var(--cg-series-2)" },
+  { key: "disk", label: "Disk", color: "var(--cg-series-3)" },
 ] as const;
 
 function formatTick(ts: number, range: MetricRange): string {

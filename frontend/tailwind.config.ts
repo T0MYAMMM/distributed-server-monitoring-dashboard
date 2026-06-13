@@ -21,6 +21,10 @@ export default {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ["Geist", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+        mono: ["Geist Mono", "ui-monospace", "SF Mono", "JetBrains Mono", "Menlo", "Consolas", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -1,13 +1,15 @@
+/* Geist (UI) + Geist Mono (logs/metrics/IPs) — per the CloudGuard design system. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*
- * Design tokens. Dark-first: :root is the dark theme; .light derives the light
- * theme from the same token names. All component colors resolve to these
- * variables via the Tailwind config, so components never hardcode hex values.
- * Accent is the orange family; success=green, warning=amber, critical=red.
- * Spacing follows an 8px scale; one type scale; lucide icons.
+ * Design tokens — formalized by the CloudGuard Design System (claude.ai/design
+ * a66aa9b8; mirrored in /design-system). Dark-first: :root is the dark theme;
+ * .light derives from the same names. All color via tokens, never hex.
+ * Accent is orange; success=green, warning=amber, critical=red. 8px rhythm.
  */
 @layer base {
   :root,
@@ -45,6 +47,24 @@
     --ring: 24 95% 53%;
 
     --radius: 0.625rem;
+
+    /* Type families */
+    --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+      Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo,
+      Consolas, monospace;
+
+    /* Data-viz series palette (charts) — series-1 is the brand orange. */
+    --cg-series-1: hsl(24 95% 53%);
+    --cg-series-2: hsl(199 89% 60%);
+    --cg-series-3: hsl(255 80% 72%);
+    --cg-series-4: hsl(160 70% 48%);
+    --cg-series-5: hsl(43 92% 58%);
+    --cg-series-6: hsl(330 78% 66%);
+
+    /* Density (tables/lists swap these via .density-compact) */
+    --row-height: 3rem;
+    --control-height: 2.5rem;
   }
 
   .light {
@@ -79,6 +99,18 @@
     --border: 214 20% 88%;
     --input: 214 20% 88%;
     --ring: 24 95% 50%;
+
+    --cg-series-1: hsl(24 95% 50%);
+    --cg-series-2: hsl(199 89% 48%);
+    --cg-series-3: hsl(255 70% 60%);
+    --cg-series-4: hsl(160 70% 38%);
+    --cg-series-5: hsl(43 92% 48%);
+    --cg-series-6: hsl(330 78% 56%);
+  }
+
+  .density-compact {
+    --row-height: 2.25rem;
+    --control-height: 2.25rem;
   }
 }
 
@@ -89,6 +121,36 @@
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/*
+ * Mono / log surface (log-geulis: TS | LEVEL | MODULE | MESSAGE). Geist Mono,
+ * level badges colored + labeled (never color alone), token highlighting hooks.
+ * Mirrored from design-system/tokens/mono-surface.css.
+ */
+@layer components {
+  .cg-logpane {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.625;
+    color: hsl(var(--foreground));
+  }
+  .cg-log-level {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    font-weight: 600;
+    padding: 0 6px;
+    border-radius: calc(var(--radius) - 4px);
+    border: 1px solid currentColor;
+    font-size: 0.625rem;
+    letter-spacing: 0.04em;
+  }
+  .cg-log-level[data-level="ERROR"] { color: hsl(var(--critical)); }
+  .cg-log-level[data-level="WARN"] { color: hsl(var(--warning)); }
+  .cg-log-level[data-level="INFO"] { color: hsl(var(--success)); }
+  .cg-log-level[data-level="DEBUG"] { color: hsl(var(--muted-foreground)); }
 }
