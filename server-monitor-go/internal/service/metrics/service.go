@@ -26,6 +26,7 @@ type Repo interface {
 	RollupSeries(serverID string, from, to, bucket int64) ([]domain.MetricSample, error)
 	FleetAverage(from, to int64, useRollup bool) (cpu, mem, disk, net float64, err error)
 	UptimeBuckets(from, to int64) (withData, total int64, err error)
+	ServerUptimeBuckets(serverID string, from, to int64) (withData, total int64, err error)
 	CompactRollups(rawCutoff, rollupCutoff int64) error
 	ListServers() ([]domain.Server, error)
 }
@@ -156,6 +157,76 @@ func (s *Service) Summary(rng string) (domain.FleetSummary, error) {
 		Network:       domain.FleetMetric{Value: cNet, Delta: cNet - pNet},
 		UptimePercent: uptime,
 	}, nil
+}
+
+// ServerStats returns per-server analytics over the range: current resource
+// levels, observed uptime, and a disk capacity projection from the disk trend.
+func (s *Service) ServerStats(rng string) ([]domain.ServerStat, error) {
+	secs := rangeSeconds(rng)
+	now := s.clock.Now().Unix()
+	from := now - secs
+
+	servers, err := s.repo.ListServers()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.ServerStat, 0, len(servers))
+	for _, sv := range servers {
+		stat := domain.ServerStat{
+			ID: sv.ID, Name: sv.Name, Status: sv.Status,
+			CPU: sv.CPU, Memory: sv.Memory, Disk: sv.Disk,
+			DiskDaysToFull: -1,
+		}
+		withData, total, err := s.repo.ServerUptimeBuckets(sv.ID, from, now)
+		if err != nil {
+			return nil, err
+		}
+		if total > 0 {
+			stat.UptimePercent = float64(withData) / float64(total) * 100
+			if stat.UptimePercent > 100 {
+				stat.UptimePercent = 100
+			}
+		}
+		if series, err := s.History(sv.ID, rng); err == nil {
+			stat.DiskDaysToFull = diskDaysToFull(series, sv.Disk)
+		}
+		out = append(out, stat)
+	}
+	return out, nil
+}
+
+// diskDaysToFull fits a line to the disk series and projects days until 100%.
+// Returns -1 when the trend is flat/falling or there is too little data.
+func diskDaysToFull(series []domain.MetricSample, currentDisk float64) float64 {
+	if len(series) < 3 {
+		return -1
+	}
+	// Least-squares slope of disk over time (percent per second).
+	var n, sx, sy, sxx, sxy float64
+	t0 := float64(series[0].Ts)
+	for _, m := range series {
+		x := float64(m.Ts) - t0
+		y := m.Disk
+		n++
+		sx += x
+		sy += y
+		sxx += x * x
+		sxy += x * y
+	}
+	denom := n*sxx - sx*sx
+	if denom == 0 {
+		return -1
+	}
+	slopePerSec := (n*sxy - sx*sy) / denom
+	perDay := slopePerSec * 86400
+	if perDay <= 0.01 { // essentially flat or falling
+		return -1
+	}
+	remaining := 100 - currentDisk
+	if remaining <= 0 {
+		return 0
+	}
+	return remaining / perDay
 }
 
 // Compact runs one rollup/prune cycle.

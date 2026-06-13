@@ -173,6 +173,75 @@ func (s *Store) Modules(ctx context.Context, serverID string) ([]string, error) 
 	return out, rows.Err()
 }
 
+// LogVolume returns per-bucket log counts split by level over [from, to).
+// serverID "" aggregates across the whole fleet; bucketSecs sets the bucket
+// width in seconds.
+func (s *Store) LogVolume(ctx context.Context, serverID string, from, to time.Time, bucketSecs int) ([]domain.LogVolumePoint, error) {
+	if bucketSecs < 1 {
+		bucketSecs = 3600
+	}
+	args := []any{bucketSecs, from.UTC(), to.UTC()}
+	where := "ts >= $2 AND ts < $3"
+	if serverID != "" {
+		args = append(args, serverID)
+		where += fmt.Sprintf(" AND server_id = $%d", len(args))
+	}
+	sql := `SELECT (floor(extract(epoch from ts)/$1)*$1)::bigint AS bucket,
+			SUM(CASE WHEN level='DEBUG' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN level='INFO'  THEN 1 ELSE 0 END),
+			SUM(CASE WHEN level='WARN'  THEN 1 ELSE 0 END),
+			SUM(CASE WHEN level='ERROR' THEN 1 ELSE 0 END)
+		FROM logs WHERE ` + where + `
+		GROUP BY bucket ORDER BY bucket`
+	rows, err := s.pool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("log volume: %w", err)
+	}
+	defer rows.Close()
+	out := make([]domain.LogVolumePoint, 0)
+	for rows.Next() {
+		var p domain.LogVolumePoint
+		if err := rows.Scan(&p.Ts, &p.Debug, &p.Info, &p.Warn, &p.Error); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// TopModules returns the busiest modules over [from, to) with their error
+// counts, for the "top error sources" view. serverID "" spans the fleet.
+func (s *Store) TopModules(ctx context.Context, serverID string, from, to time.Time, limit int) ([]domain.ModuleStat, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	args := []any{from.UTC(), to.UTC()}
+	where := "ts >= $1 AND ts < $2 AND module <> ''"
+	if serverID != "" {
+		args = append(args, serverID)
+		where += fmt.Sprintf(" AND server_id = $%d", len(args))
+	}
+	args = append(args, limit)
+	sql := `SELECT module, COUNT(*) AS total,
+			SUM(CASE WHEN level='ERROR' THEN 1 ELSE 0 END) AS errors
+		FROM logs WHERE ` + where + `
+		GROUP BY module ORDER BY total DESC LIMIT $` + fmt.Sprint(len(args))
+	rows, err := s.pool.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("top modules: %w", err)
+	}
+	defer rows.Close()
+	out := make([]domain.ModuleStat, 0)
+	for rows.Next() {
+		var m domain.ModuleStat
+		if err := rows.Scan(&m.Module, &m.Total, &m.Errors); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 func parseTs(s string) time.Time {
 	if s == "" {
 		return time.Now().UTC()

@@ -25,9 +25,12 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/domain"
 	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	channelssvc "github.com/thomasstefen/server-monitor/internal/service/channels"
+	feedbacksvc "github.com/thomasstefen/server-monitor/internal/service/feedback"
 	logssvc "github.com/thomasstefen/server-monitor/internal/service/logs"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
+	settingssvc "github.com/thomasstefen/server-monitor/internal/service/settings"
 	"github.com/thomasstefen/server-monitor/internal/storage/sqlite"
 	httpapi "github.com/thomasstefen/server-monitor/internal/transport/http"
 	"github.com/thomasstefen/server-monitor/internal/transport/ws"
@@ -51,14 +54,22 @@ func setupAPI(t *testing.T) (srv *httptest.Server, st *sqlite.Store, token strin
 	serversSvc := servers.New(st, servers.SystemClock{}, slog.Default())
 	alertsSvc := alertssvc.New(st, nil, alertssvc.SystemClock{}, 90, nil, slog.Default())
 	serversSvc.SetAlertSink(alertsSvc)
-	h := httpapi.New(
-		serversSvc,
-		authsvc.New(st, au),
-		metricssvc.New(st, metricssvc.SystemClock{}, slog.Default()),
-		alertsSvc,
-		logssvc.New(nil, slog.Default()), // logs disabled in handler tests
-		ws.New(), "", slog.Default(),
-	)
+	settingsSvc, err := settingssvc.New(st, settingssvc.Defaults{InstanceName: "CloudGuard", DiskThreshold: 90, StaleAfter: 30}, slog.Default())
+	if err != nil {
+		t.Fatalf("settings.New: %v", err)
+	}
+	h := httpapi.New(httpapi.Deps{
+		Servers:  serversSvc,
+		Auth:     authsvc.New(st, au),
+		Metrics:  metricssvc.New(st, metricssvc.SystemClock{}, slog.Default()),
+		Alerts:   alertsSvc,
+		Logs:     logssvc.New(nil, slog.Default()), // logs disabled in handler tests
+		Settings: settingsSvc,
+		Channels: channelssvc.New(st, slog.Default()),
+		Feedback: feedbacksvc.New(st, "", slog.Default()),
+		Hub:      ws.New(),
+		Log:      slog.Default(),
+	})
 	srv = httptest.NewServer(h.Handler(slog.Default()))
 	t.Cleanup(srv.Close)
 	return srv, st, tok

@@ -17,9 +17,12 @@ import (
 	"github.com/thomasstefen/server-monitor/internal/masking"
 	alertssvc "github.com/thomasstefen/server-monitor/internal/service/alerts"
 	authsvc "github.com/thomasstefen/server-monitor/internal/service/auth"
+	channelssvc "github.com/thomasstefen/server-monitor/internal/service/channels"
+	feedbacksvc "github.com/thomasstefen/server-monitor/internal/service/feedback"
 	logssvc "github.com/thomasstefen/server-monitor/internal/service/logs"
 	metricssvc "github.com/thomasstefen/server-monitor/internal/service/metrics"
 	"github.com/thomasstefen/server-monitor/internal/service/servers"
+	settingssvc "github.com/thomasstefen/server-monitor/internal/service/settings"
 	"github.com/thomasstefen/server-monitor/internal/transport/http/middleware"
 	"github.com/thomasstefen/server-monitor/internal/transport/ws"
 )
@@ -31,19 +34,44 @@ type Handlers struct {
 	metrics   *metricssvc.Service
 	alerts    *alertssvc.Service
 	logs      *logssvc.Service
+	settings  *settingssvc.Service
+	channels  *channelssvc.Service
+	feedback  *feedbacksvc.Service
 	hub       *ws.Hub
 	agentsDir string
+	version   string
 	log       *slog.Logger
 }
 
-// New constructs the HTTP handlers. agentsDir holds prebuilt agent binaries to
-// serve at /download/<file>; pass "" to disable the download endpoint. logs may
-// be nil/disabled when no external log database is configured.
-func New(srv *servers.Service, a *authsvc.Service, m *metricssvc.Service, al *alertssvc.Service, lg *logssvc.Service, hub *ws.Hub, agentsDir string, log *slog.Logger) *Handlers {
+// Deps bundles the service dependencies the HTTP layer needs. It keeps the
+// constructor stable as features are added.
+type Deps struct {
+	Servers   *servers.Service
+	Auth      *authsvc.Service
+	Metrics   *metricssvc.Service
+	Alerts    *alertssvc.Service
+	Logs      *logssvc.Service
+	Settings  *settingssvc.Service
+	Channels  *channelssvc.Service
+	Feedback  *feedbacksvc.Service
+	Hub       *ws.Hub
+	AgentsDir string // prebuilt agent binaries served at /download/<file>; "" disables it
+	Version   string
+	Log       *slog.Logger
+}
+
+// New constructs the HTTP handlers from the dependency bundle. logs may be
+// nil/disabled when no external log database is configured.
+func New(d Deps) *Handlers {
+	log := d.Log
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Handlers{servers: srv, auth: a, metrics: m, alerts: al, logs: lg, hub: hub, agentsDir: agentsDir, log: log}
+	return &Handlers{
+		servers: d.Servers, auth: d.Auth, metrics: d.Metrics, alerts: d.Alerts,
+		logs: d.Logs, settings: d.Settings, channels: d.Channels, feedback: d.Feedback,
+		hub: d.Hub, agentsDir: d.AgentsDir, version: d.Version, log: log,
+	}
 }
 
 var upgrader = websocket.Upgrader{
@@ -58,7 +86,7 @@ func (h *Handlers) listServers(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	if !h.isAuthed(r) {
+	if h.shouldMask(r) {
 		masking.All(list)
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -70,7 +98,7 @@ func (h *Handlers) getServer(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	if !h.isAuthed(r) {
+	if h.shouldMask(r) {
 		masking.One(&sv)
 	}
 	writeJSON(w, http.StatusOK, sv)
@@ -351,7 +379,7 @@ func (h *Handlers) dashboardWS(w http.ResponseWriter, r *http.Request) {
 	}
 	authed := h.wsAuthed(r)
 	if list, err := h.servers.List(); err == nil {
-		if !authed {
+		if !authed && h.maskEnabled() {
 			masking.All(list) // anonymous sockets get masked addresses
 		}
 		if b, err := json.Marshal(list); err == nil {
@@ -378,6 +406,10 @@ func (h *Handlers) broadcast() {
 	copy(masked, list)
 	masking.All(masked)
 	maskedBytes, merr := json.Marshal(masked)
+	// When IP masking is disabled, anonymous sockets see the full frame too.
+	if !h.maskEnabled() {
+		maskedBytes, merr = full, ferr
+	}
 
 	if ferr == nil && merr == nil {
 		h.hub.Broadcast(maskedBytes, full)
@@ -391,6 +423,17 @@ func (h *Handlers) Broadcast() { h.broadcast() }
 // isAuthed reports whether the request carries a valid admin bearer token.
 func (h *Handlers) isAuthed(r *http.Request) bool {
 	return h.auth.ValidToken(middleware.BearerToken(r))
+}
+
+// maskEnabled reports whether IP masking is on (the Settings toggle; default on).
+func (h *Handlers) maskEnabled() bool {
+	return h.settings == nil || h.settings.MaskIPs()
+}
+
+// shouldMask reports whether the response IPs should be masked: the viewer is
+// anonymous and masking is enabled.
+func (h *Handlers) shouldMask(r *http.Request) bool {
+	return !h.isAuthed(r) && h.maskEnabled()
 }
 
 // wsAuthed reports whether a WebSocket upgrade is authenticated. Browsers cannot

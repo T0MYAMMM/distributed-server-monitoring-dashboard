@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/thomasstefen/server-monitor/internal/domain"
 )
@@ -18,6 +19,8 @@ type Store interface {
 	InsertLogs(ctx context.Context, serverID, server string, lines []domain.LogLine) error
 	QueryLogs(ctx context.Context, q domain.LogQuery) ([]domain.LogLine, error)
 	Modules(ctx context.Context, serverID string) ([]string, error)
+	LogVolume(ctx context.Context, serverID string, from, to time.Time, bucketSecs int) ([]domain.LogVolumePoint, error)
+	TopModules(ctx context.Context, serverID string, from, to time.Time, limit int) ([]domain.ModuleStat, error)
 	Close()
 }
 
@@ -61,4 +64,42 @@ func (s *Service) Query(ctx context.Context, q domain.LogQuery) ([]domain.LogLin
 // Modules returns the distinct module (app) names for a server.
 func (s *Service) Modules(ctx context.Context, serverID string) ([]string, error) {
 	return s.store.Modules(ctx, serverID)
+}
+
+// analyticsBuckets is the target number of time buckets for the volume series.
+const analyticsBuckets = 48
+
+// rangeWindow maps an API range token to [from, to) and a bucket width.
+func rangeWindow(rng string) (from, to time.Time, bucketSecs int) {
+	secs := int64(24 * 3600)
+	switch rng {
+	case "24h":
+		secs = 24 * 3600
+	case "7d":
+		secs = 7 * 24 * 3600
+	case "30d":
+		secs = 30 * 24 * 3600
+	case "90d":
+		secs = 90 * 24 * 3600
+	}
+	to = time.Now().UTC()
+	from = to.Add(-time.Duration(secs) * time.Second)
+	bucketSecs = int(secs / analyticsBuckets)
+	if bucketSecs < 60 {
+		bucketSecs = 60
+	}
+	return from, to, bucketSecs
+}
+
+// Volume returns the per-bucket log volume by level over the range. serverID ""
+// spans the fleet.
+func (s *Service) Volume(ctx context.Context, serverID, rng string) ([]domain.LogVolumePoint, error) {
+	from, to, bucket := rangeWindow(rng)
+	return s.store.LogVolume(ctx, serverID, from, to, bucket)
+}
+
+// TopModules returns the busiest modules (with error counts) over the range.
+func (s *Service) TopModules(ctx context.Context, serverID, rng string, limit int) ([]domain.ModuleStat, error) {
+	from, to, _ := rangeWindow(rng)
+	return s.store.TopModules(ctx, serverID, from, to, limit)
 }
