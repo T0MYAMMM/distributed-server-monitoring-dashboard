@@ -1,0 +1,44 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CloudGuard — Typography tokens
+ *
+ * One type scale. Geist for UI; Geist Mono for the "mono surface" — logs,
+ * metrics, IPs, IDs, install commands. Tabular figures for any column of
+ * numbers (uptime, percentages, byte rates).
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Families */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono",
+    Menlo, Consolas, monospace;
+
+  /* Type scale (rem) — compact, dense-friendly */
+  --text-2xs: 0.625rem;   /* 10px — kbd, "Soon" pills */
+  --text-xs: 0.75rem;     /* 12px — meta, table sub-labels, log lines */
+  --text-sm: 0.875rem;    /* 14px — body default, controls */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px — card titles (lg) */
+  --text-2xl: 1.5rem;     /* 24px — KPI values, page titles */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px — hero / big numbers */
+
+  /* Weights */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Line heights */
+  --leading-none: 1;
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;  /* log lines */
+
+  /* Letter spacing */
+  --tracking-tight: -0.02em;   /* headings, KPI numbers */
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;     /* uppercase eyebrows / section labels */
+}

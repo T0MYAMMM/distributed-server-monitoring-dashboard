@@ -1,0 +1,12 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CloudGuard Design System — global entry point.
+ * Consumers link THIS file. It is an import list only; all real declarations
+ * live in the imported token sheets.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url("./tokens/fonts.css");
+@import url("./tokens/colors.css");
+@import url("./tokens/typography.css");
+@import url("./tokens/spacing.css");
+@import url("./tokens/mono-surface.css");
+@import url("./components.css");
