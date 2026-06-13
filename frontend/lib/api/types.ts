@@ -90,3 +90,82 @@ export interface LogLine {
   message: string;
   source_file: string;
 }
+
+// --- settings ---
+export type SettingKind = "string" | "int" | "float" | "bool" | "enum";
+
+export interface SettingField {
+  key: string;
+  section: string;
+  label: string;
+  help?: string;
+  kind: SettingKind;
+  value: string;
+  default: string;
+  options?: string[];
+  env_var?: string;
+  env_locked: boolean;
+  restart_required?: boolean;
+  min?: number;
+  max?: number;
+}
+
+export interface SettingsDoc {
+  fields: SettingField[];
+  about: Record<string, string>;
+}
+
+// --- notification channels ---
+export type ChannelType = "slack" | "discord" | "ntfy" | "webhook" | "pagerduty" | "email";
+
+export interface NotificationChannel {
+  id: number;
+  type: ChannelType;
+  name: string;
+  config: Record<string, string>;
+  enabled: boolean;
+  secrets_set?: string[];
+  last_status: "" | "ok" | "error";
+  last_error: string;
+  last_delivery: string;
+  created_at: string;
+}
+
+// --- feedback ---
+export type FeedbackCategory = "bug" | "idea" | "praise" | "general";
+
+export interface Feedback {
+  id: number;
+  category: FeedbackCategory;
+  message: string;
+  page: string;
+  created_at: string;
+}
+
+// --- analytics ---
+export type AnalyticsRange = "24h" | "7d" | "30d" | "90d";
+
+export interface ServerStat {
+  id: string;
+  name: string;
+  status: ServerStatus;
+  cpu: number;
+  memory: number;
+  disk: number;
+  uptime_percent: number;
+  disk_days_to_full: number; // -1 = no upward trend
+}
+
+export interface LogVolumePoint {
+  ts: number;
+  debug: number;
+  info: number;
+  warn: number;
+  error: number;
+}
+
+export interface ModuleStat {
+  module: string;
+  total: number;
+  errors: number;
+}
