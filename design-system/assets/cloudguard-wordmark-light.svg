@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="190" height="36" viewBox="0 0 190 36" fill="none">
+  <rect width="32" height="32" y="2" rx="7" fill="#f97316"></rect>
+  <polyline points="5,18 11.5,18 14,25 18,11 20.5,18 27,18" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
+  <text x="44" y="25" font-family="Geist, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="600" letter-spacing="-0.02em" fill="#eaeef2">CloudGuard</text>
+</svg>

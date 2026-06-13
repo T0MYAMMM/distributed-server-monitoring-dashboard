@@ -1,0 +1,66 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CloudGuard — Mono / log surface
+ *
+ * The logs & metrics surface (log-geulis format: TS | LEVEL | MODULE | MESSAGE).
+ * Defines the monospace pane, level-badge colors, and token highlighting for
+ * HTTP verbs / status codes / URLs / [key=value] tags. Class-based so it can be
+ * applied to any log pane without bringing the React component.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cg-logpane {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  background: hsl(222 24% 8% / 0.5);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--radius-md);
+  color: var(--cg-text);
+  padding: var(--space-2);
+  overflow: auto;
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  align-content: start;
+  gap: 1px var(--space-2);
+}
+
+.cg-logline {
+  display: contents;
+}
+.cg-logline > * {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.cg-log-ts { color: var(--cg-text-muted); white-space: nowrap; }
+.cg-log-module { color: var(--cg-accent); white-space: nowrap; }
+.cg-log-msg { min-width: 0; word-break: break-word; }
+
+/* Level badge — color + the text itself carry the level (never color alone). */
+.cg-log-level {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-weight: var(--weight-semibold);
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+  letter-spacing: var(--tracking-wide);
+  margin-top: 1px;
+}
+.cg-log-level[data-level="ERROR"] { color: var(--cg-critical); }
+.cg-log-level[data-level="WARN"]  { color: var(--cg-warning); }
+.cg-log-level[data-level="INFO"]  { color: var(--cg-success); }
+.cg-log-level[data-level="DEBUG"] { color: var(--cg-text-muted); }
+
+/* Token highlighting within a message */
+.cg-tok-verb   { color: var(--cg-series-3); font-weight: var(--weight-semibold); }
+.cg-tok-2xx    { color: var(--cg-success); }
+.cg-tok-3xx    { color: var(--cg-series-2); }
+.cg-tok-4xx    { color: var(--cg-warning); }
+.cg-tok-5xx    { color: var(--cg-critical); }
+.cg-tok-url    { color: var(--cg-series-2); text-decoration: underline; text-underline-offset: 2px; }
+.cg-tok-key    { color: var(--cg-text-muted); }
+.cg-tok-val    { color: var(--cg-text); }

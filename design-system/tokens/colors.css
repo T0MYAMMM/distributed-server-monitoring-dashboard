@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CloudGuard — Color tokens
+ *
+ * Dark-first. :root and .dark are the canonical (dark) theme; .light derives
+ * a light theme from the same names. Two layers:
+ *
+ *   1. CHANNEL tokens (`--background: 222 24% 8%`) — bare HSL channels, kept
+ *      exactly as the shipped Tailwind/shadcn config consumes them via
+ *      `hsl(var(--token))`. Do not wrap these in hsl() here.
+ *   2. RESOLVED semantic tokens (`--cg-*: hsl(...)`) — ready-to-use colors for
+ *      plain HTML/CSS/JSX that isn't going through Tailwind. Same source values.
+ *
+ * Accent is the orange family. Status: success=green, warning=amber,
+ * critical=red. Color is never the only status signal — pair with icon + label.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root,
+.dark {
+  /* ── Channel tokens (shadcn/Tailwind contract) — bare HSL channels ───── */
+  --background: 222 24% 8%; /* @kind color */
+  --foreground: 210 20% 92%; /* @kind color */
+
+  --card: 222 22% 11%; /* @kind color */
+  --card-foreground: 210 20% 92%; /* @kind color */
+
+  --popover: 222 24% 10%; /* @kind color */
+  --popover-foreground: 210 20% 92%; /* @kind color */
+
+  --primary: 24 95% 53%; /* @kind color */
+  --primary-foreground: 0 0% 100%; /* @kind color */
+
+  --secondary: 222 16% 18%; /* @kind color */
+  --secondary-foreground: 210 20% 92%; /* @kind color */
+
+  --muted: 222 16% 16%; /* @kind color */
+  --muted-foreground: 215 14% 60%; /* @kind color */
+
+  --accent: 222 16% 18%; /* @kind color */
+  --accent-foreground: 210 20% 92%; /* @kind color */
+
+  --success: 142 71% 45%; /* @kind color */
+  --success-foreground: 0 0% 100%; /* @kind color */
+  --warning: 38 92% 50%; /* @kind color */
+  --warning-foreground: 0 0% 10%; /* @kind color */
+  --critical: 0 84% 60%; /* @kind color */
+  --critical-foreground: 0 0% 100%; /* @kind color */
+
+  --border: 222 16% 20%; /* @kind color */
+  --input: 222 16% 20%; /* @kind color */
+  --ring: 24 95% 53%; /* @kind color */
+
+  /* ── Resolved surfaces & elevation ───────────────────────────────────── */
+  --cg-bg: hsl(222 24% 8%);              /* app background (lowest) */
+  --cg-surface: hsl(222 22% 11%);        /* cards, panels */
+  --cg-surface-2: hsl(222 24% 10%);      /* popovers, menus */
+  --cg-surface-raised: hsl(222 18% 14%); /* hover / raised rows */
+  --cg-muted: hsl(222 16% 16%);          /* track, inset wells */
+  --cg-secondary: hsl(222 16% 18%);      /* secondary button, chips */
+  --cg-border: hsl(222 16% 20%);
+  --cg-border-strong: hsl(222 16% 28%);
+
+  /* ── Resolved text ───────────────────────────────────────────────────── */
+  --cg-text: hsl(210 20% 92%);
+  --cg-text-muted: hsl(215 14% 60%);
+  --cg-text-faint: hsl(215 14% 44%);
+
+  /* ── Resolved accent ─────────────────────────────────────────────────── */
+  --cg-accent: hsl(24 95% 53%);          /* #f97316 */
+  --cg-accent-hover: hsl(24 95% 48%);
+  --cg-accent-fg: hsl(0 0% 100%);
+  --cg-accent-tint: hsl(24 95% 53% / 0.15);
+  --cg-accent-tint-10: hsl(24 95% 53% / 0.10);
+
+  /* ── Resolved semantic status ────────────────────────────────────────── */
+  --cg-success: hsl(142 71% 45%);
+  --cg-success-tint: hsl(142 71% 45% / 0.15);
+  --cg-warning: hsl(38 92% 50%);
+  --cg-warning-tint: hsl(38 92% 50% / 0.15);
+  --cg-critical: hsl(0 84% 60%);
+  --cg-critical-tint: hsl(0 84% 60% / 0.15);
+
+  /* ── Data-viz series palette (charts) ────────────────────────────────────
+   * 6 distinguishable hues; series-1 is the brand orange so single-series
+   * charts read on-brand. Use in legend order; do not recolor by status. */
+  --cg-series-1: hsl(24 95% 53%);   /* orange  — brand */
+  --cg-series-2: hsl(199 89% 60%);  /* sky */
+  --cg-series-3: hsl(255 80% 72%);  /* violet */
+  --cg-series-4: hsl(160 70% 48%);  /* emerald */
+  --cg-series-5: hsl(43 92% 58%);   /* amber */
+  --cg-series-6: hsl(330 78% 66%);  /* pink */
+}
+
+.light {
+  --background: 210 40% 98%; /* @kind color */
+  --foreground: 222 47% 11%; /* @kind color */
+
+  --card: 0 0% 100%; /* @kind color */
+  --card-foreground: 222 47% 11%; /* @kind color */
+
+  --popover: 0 0% 100%; /* @kind color */
+  --popover-foreground: 222 47% 11%; /* @kind color */
+
+  --primary: 24 95% 50%; /* @kind color */
+  --primary-foreground: 0 0% 100%; /* @kind color */
+
+  --secondary: 210 20% 94%; /* @kind color */
+  --secondary-foreground: 222 47% 11%; /* @kind color */
+
+  --muted: 210 20% 94%; /* @kind color */
+  --muted-foreground: 215 16% 42%; /* @kind color */
+
+  --accent: 210 20% 94%; /* @kind color */
+  --accent-foreground: 222 47% 11%; /* @kind color */
+
+  --success: 142 71% 38%; /* @kind color */
+  --success-foreground: 0 0% 100%; /* @kind color */
+  --warning: 38 92% 45%; /* @kind color */
+  --warning-foreground: 0 0% 10%; /* @kind color */
+  --critical: 0 72% 51%; /* @kind color */
+  --critical-foreground: 0 0% 100%; /* @kind color */
+
+  --border: 214 20% 88%; /* @kind color */
+  --input: 214 20% 88%; /* @kind color */
+  --ring: 24 95% 50%; /* @kind color */
+
+  /* Resolved layer, light */
+  --cg-bg: hsl(210 40% 98%);
+  --cg-surface: hsl(0 0% 100%);
+  --cg-surface-2: hsl(0 0% 100%);
+  --cg-surface-raised: hsl(210 30% 96%);
+  --cg-muted: hsl(210 20% 94%);
+  --cg-secondary: hsl(210 20% 94%);
+  --cg-border: hsl(214 20% 88%);
+  --cg-border-strong: hsl(214 20% 78%);
+
+  --cg-text: hsl(222 47% 11%);
+  --cg-text-muted: hsl(215 16% 42%);
+  --cg-text-faint: hsl(215 16% 58%);
+
+  --cg-accent: hsl(24 95% 50%);
+  --cg-accent-hover: hsl(24 95% 45%);
+  --cg-accent-fg: hsl(0 0% 100%);
+  --cg-accent-tint: hsl(24 95% 50% / 0.14);
+  --cg-accent-tint-10: hsl(24 95% 50% / 0.09);
+
+  --cg-success: hsl(142 71% 38%);
+  --cg-success-tint: hsl(142 71% 38% / 0.14);
+  --cg-warning: hsl(38 92% 45%);
+  --cg-warning-tint: hsl(38 92% 45% / 0.14);
+  --cg-critical: hsl(0 72% 51%);
+  --cg-critical-tint: hsl(0 72% 51% / 0.14);
+
+  --cg-series-1: hsl(24 95% 50%);
+  --cg-series-2: hsl(199 89% 48%);
+  --cg-series-3: hsl(255 70% 60%);
+  --cg-series-4: hsl(160 70% 38%);
+  --cg-series-5: hsl(43 92% 48%);
+  --cg-series-6: hsl(330 78% 56%);
+}

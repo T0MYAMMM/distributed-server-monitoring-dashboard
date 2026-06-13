@@ -1,0 +1,12 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * Webfonts. The shipped product uses the Tailwind default sans stack; the
+ * redesign plan (§3.3) formalizes a crisp grotesk for UI plus a monospace for
+ * the log / metric / IP surface. We adopt Geist + Geist Mono (the plan's first
+ * recommendation), loaded from Google Fonts.
+ *
+ * SUBSTITUTION NOTE: the codebase ships no font binaries, so these are loaded
+ * remotely rather than self-hosted. Swap the @import for self-hosted
+ * @font-face rules + .woff2 files if you need offline / pinned fonts.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap');
