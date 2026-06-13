@@ -325,3 +325,28 @@ Deferred deliberate behavior changes (tracked, not yet applied):
 | 3 | Frontend foundation (shell, tokens, client, WS, Query) | DONE (branch `phase-3-frontend-foundation`): dependency overhaul, CSS-variable design tokens + Tailwind theme, typed v1 client, auth module, WS manager, TanStack Query, hooks, shadcn/Radix UI primitives, shared components, config/nav, AppShell (Sidebar/Topbar/CommandPalette), App Router migration with providers. Zero Chakra imports; tsc + next build green; all 14 routes serve 200. |
 | 4 | Page rebuilds (Dashboard, Servers, Alerts, Admin) | DONE alongside the App Router migration: Dashboard (KPI cards + trend badges + Recharts time-series + resource/notices panel + server table), Servers (full table + expandable detail + per-server chart), Alerts (severity filter + acknowledge + bell badge), Admin (auth-gated; stats, client table with copy install commands, order editing, delete, unknown-agents card, add/reset dialogs), Login. Remaining for a later polish pass: real drag-and-drop ordering (D2; currently numeric editor), dedicated per-server drawer, mobile card layout (currently responsive table). |
 | 5 | Hardening & docs | DONE (branch `phase-5-hardening`): D5 Tailscale masking + auth-aware WebSocket (admin reveals IPs live, REST+WS), nested v1 error envelope (D4), gofmt + .golangci.yml + next lint clean, go test -race green, build.sh all targets, end-to-end runtime smoke (real agent → metrics/summary/masking/auth), docs/architecture.md + docs/adding-a-feature.md, PRD bumped to v2.0 with v1 contract, README updated. Remaining nice-to-have: real drag-and-drop ordering (D2; admin currently uses a numeric order editor). |
+
+---
+
+## 12. Beyond the brief — shipped enhancements
+
+The 6-phase refactor is complete. Subsequent work, also shipped to `main` and
+running live:
+
+- **D2 drag-and-drop ordering** — admin client table reorders via `@dnd-kit`,
+  persisting to `PUT /…/order`.
+- **CloudGuard favicon** — `app/icon.svg` (Activity mark), auto-wired by App Router.
+- **Per-VM log monitoring (new feature, not in the original brief).** Adopts the
+  [log-geulis](https://github.com/T0MYAMMM/log-geulis) format. Agent `--logs`
+  tails files → `POST /api/v1/logs` → **external Postgres** (pgx, pure Go; core
+  stays on SQLite) → `/logs` viewer with **multi-select module filter**,
+  message-only **keyword grep**, level filter, and **live SSE tail**. Endpoints:
+  ingest, query, `/logs/modules`, `/logs/stream`. See `docs/logs.md`.
+- **Operational log collection** across the live fleet (journald / Docker /
+  file-glob bridges; root-agent / user-service+linger / `cron @reboot`
+  persistence). See `docs/operations.md`.
+
+Next: the product/brand/feature plan in `docs/redesign-and-rebranding-plan.md`
+(unfinished nav placeholders — Analytics, Integrations, Settings, Help, Feedback
+— are specified there as design briefs, plus strategic gaps like RBAC, alert
+rules, log insights, and a server-detail view).
