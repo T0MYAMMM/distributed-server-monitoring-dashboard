@@ -54,11 +54,15 @@ no runtime dependencies); the dashboard is **Next.js**. Built to run over a
     └── dist/            # built static binaries
 ```
 
-Architecture and contributor docs:
+Docs:
 [`docs/architecture.md`](docs/architecture.md) (backend layering + frontend
-conventions) · [`docs/adding-a-feature.md`](docs/adding-a-feature.md)
-(step-by-step checklist) · [`docs/logs.md`](docs/logs.md) (per-VM log
-monitoring setup) · [`docs/PRD.md`](docs/PRD.md) (product requirements).
+conventions) · [`docs/operations.md`](docs/operations.md) (deploy + fleet
+runbook) · [`docs/logs.md`](docs/logs.md) (per-VM log monitoring cookbook) ·
+[`docs/adding-a-feature.md`](docs/adding-a-feature.md) (contributor checklist) ·
+[`docs/add-machine.md`](docs/add-machine.md) (onboard a node) ·
+[`docs/PRD.md`](docs/PRD.md) (product requirements) ·
+[`docs/redesign-and-rebranding-plan.md`](docs/redesign-and-rebranding-plan.md)
+(product/brand/feature plan + design briefs).
 
 ## Quick start
 

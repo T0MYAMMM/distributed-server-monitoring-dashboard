@@ -224,9 +224,23 @@ Unversioned: `GET /download/<file>` (agent binaries), `GET /healthz` (liveness).
 | `STALE_AFTER_SECONDS` | `30` | Silence before `running` → `stopped` |
 | `ALERT_WEBHOOK_URL` | _(empty)_ | Generic webhook for alert JSON (empty ⇒ disabled) |
 | `ALERT_DISK_THRESHOLD` | `90` | Disk-usage percent that raises a threshold alert |
+| `LOG_DATABASE_URL` | _(empty)_ | External Postgres for per-VM logs; empty ⇒ logs disabled |
 
 Frontend: `PORT` (dashboard port); the dashboard auto-detects the API at
 `<host>:5000`, overridable with `NEXT_PUBLIC_API_URL`.
+
+### 7.8 Per-VM log monitoring
+
+Beyond metrics, the agent can tail log files (`--logs`/`MONITOR_LOGS`) and ship
+them to the hub, which stores them in an **external Postgres** (`LOG_DATABASE_URL`;
+the core stays on SQLite). The **Logs & Activity** page tails and searches them
+per node with a **multi-select app/module filter**, level filter, message
+keyword grep, and a **live SSE tail**. Logs adopt the
+[log-geulis](https://github.com/T0MYAMMM/log-geulis) format
+(`TS | LEVEL | MODULE | MESSAGE`); journald and Docker sources are captured via
+small "bridge" services. Endpoints: `POST /api/v1/logs`,
+`GET /api/v1/servers/{id}/logs` (+`/modules`, `/stream`). Full cookbook:
+`docs/logs.md`; live topology: `docs/operations.md`.
 
 ## 8. Non-functional requirements
 
