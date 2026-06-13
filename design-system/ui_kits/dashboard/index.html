@@ -1,0 +1,135 @@
+<!-- @dsCard group="Dashboard" viewport="1340x840" name="Dashboard UI kit" subtitle="Interactive fleet cockpit — nav, server detail, logs, alerts" -->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CloudGuard — Dashboard</title>
+<link rel="icon" href="../../assets/cloudguard-mark.svg" />
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--cg-bg); color: var(--cg-text); font-family: var(--font-sans); font-size: var(--text-sm); }
+  #root { height: 100vh; }
+  ::selection { background: var(--cg-accent-tint); }
+  @media (max-width: 920px) { .cg-dash-grid { grid-template-columns: 1fr !important; } }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<script src="data.js"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="FleetChart.jsx"></script>
+<script type="text/babel" src="AppShell.jsx"></script>
+<script type="text/babel" src="ServerTable.jsx"></script>
+<script type="text/babel" src="DashboardView.jsx"></script>
+<script type="text/babel" src="ServersView.jsx"></script>
+<script type="text/babel" src="LogsView.jsx"></script>
+<script type="text/babel" src="AlertsView.jsx"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+  const { useState, useEffect } = React;
+
+  function ComingSoon({ title }) {
+    const Icon = window.CGIcon;
+    const { EmptyState, Button } = window.CloudGuardDesignSystem_a66aa9;
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <EmptyState icon={<Icon name="activity" size={24} />} title={title + " is coming soon"}
+          description="This surface previews real value rather than dead-ending — the brief lives in the redesign plan."
+          action={<Button variant="outline">Read the brief</Button>} />
+      </div>
+    );
+  }
+
+  const TITLES = { analytics: "Analytics", integrations: "Integrations", feedback: "Feedback", help: "Help", settings: "Settings", admin: "Admin" };
+
+  function CommandPalette({ open, onClose, onNavigate }) {
+    const Icon = window.CGIcon;
+    const [q, setQ] = useState("");
+    useEffect(() => { if (open) setQ(""); }, [open]);
+    if (!open) return null;
+    const cmds = [
+      { label: "Go to Dashboard", icon: "dashboard", act: () => onNavigate("dashboard") },
+      { label: "Go to Servers", icon: "server", act: () => onNavigate("servers") },
+      { label: "Go to Logs & Activity", icon: "logs", act: () => onNavigate("logs") },
+      { label: "Go to Alerts", icon: "bell", act: () => onNavigate("alerts") },
+      ...window.CGData.servers.map((s) => ({ label: "Open " + s.name, icon: "server", act: () => onNavigate("servers") })),
+      { label: "Acknowledge all alerts", icon: "check", act: () => onNavigate("alerts") },
+      { label: "Toggle theme", icon: "sun", act: () => {} },
+    ];
+    const filtered = cmds.filter((c) => c.label.toLowerCase().includes(q.toLowerCase()));
+    return (
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "hsl(222 40% 2% / 0.6)", zIndex: 80, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh" }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: 560, maxWidth: "92%", background: "var(--cg-surface-2)", border: "1px solid var(--cg-border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid var(--cg-border)" }}>
+            <Icon name="search" size={18} style={{ color: "var(--cg-text-muted)" }} />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search servers, modules, actions…"
+              style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--cg-text)", fontFamily: "var(--font-sans)", fontSize: "var(--text-base)" }} />
+            <kbd style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-2xs)", border: "1px solid var(--cg-border)", borderRadius: 4, padding: "2px 6px", color: "var(--cg-text-muted)" }}>esc</kbd>
+          </div>
+          <div style={{ maxHeight: 320, overflowY: "auto", padding: 8 }}>
+            {filtered.length === 0 && <div style={{ padding: 16, color: "var(--cg-text-muted)", fontSize: "var(--text-sm)" }}>No results.</div>}
+            {filtered.map((c, i) => (
+              <button key={i} onClick={() => { c.act(); onClose(); }} className="cg-navlink"
+                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", border: "none", background: "transparent", color: "var(--cg-text)", padding: "10px 12px", borderRadius: "var(--radius-md)", cursor: "pointer", textAlign: "left", fontFamily: "var(--font-sans)", fontSize: "var(--text-sm)" }}>
+                <Icon name={c.icon} size={16} style={{ color: "var(--cg-text-muted)" }} /> {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function App() {
+    const [page, setPage] = useState("dashboard");
+    const [collapsed, setCollapsed] = useState(false);
+    const [detail, setDetail] = useState(null);
+    const [palette, setPalette] = useState(false);
+    const [logServer, setLogServer] = useState(null);
+
+    useEffect(() => {
+      const h = (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setPalette((v) => !v); }
+        if (e.key === "Escape") { setPalette(false); setDetail(null); }
+      };
+      document.addEventListener("keydown", h);
+      return () => document.removeEventListener("keydown", h);
+    }, []);
+
+    const nav = (key) => { if (key === "admin" || TITLES[key]) setPage(key); else setPage(key); setDetail(null); };
+    const openServer = (s) => s && setDetail(s);
+    const viewLogs = (s) => { setLogServer(s); setDetail(null); setPage("logs"); };
+
+    const summary = window.CGData.summary;
+    let view;
+    if (page === "dashboard") view = <window.CGDashboardView onOpenServer={openServer} />;
+    else if (page === "servers") view = <window.CGServersView onOpenServer={openServer} />;
+    else if (page === "logs") view = <window.CGLogsView initialServer={logServer} />;
+    else if (page === "alerts") view = <window.CGAlertsView onOpenServer={openServer} />;
+    else view = <ComingSoon title={TITLES[page] || "This page"} />;
+
+    return (
+      <div style={{ display: "flex", height: "100%", overflow: "hidden", position: "relative" }}>
+        <window.CGSidebar active={page} onNavigate={nav} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <window.CGTopbar running={summary.active_servers} total={summary.total_servers} unacked={window.CGData.alerts.filter((a) => !a.acknowledged_at).length} onSearch={() => setPalette(true)} />
+          <main style={{ flex: 1, overflowY: "auto", padding: 28, position: "relative" }}>
+            <div style={{ maxWidth: 1200, margin: "0 auto" }}>{view}</div>
+            {detail && <window.CGServerDetail server={detail} onClose={() => setDetail(null)} onViewLogs={viewLogs} />}
+          </main>
+        </div>
+        <CommandPalette open={palette} onClose={() => setPalette(false)} onNavigate={nav} />
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
